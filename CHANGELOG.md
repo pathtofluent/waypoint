@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.7.0 (2026-11-26)
+- The ready-to-install add-on file is now kept in the repository at `download/pathtofluent_waypoint.ankiaddon`, linked from the README. (Packaging only; the add-on itself is unchanged.)
 - New optional setting "Daily numbers folder". When a folder is chosen, each run keeps that day's line in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied, cards ready, cards waiting. A second run on the same day replaces the line. Off unless a folder is chosen.
 - A damaged numbers file is renamed aside, never overwritten. A problem writing the numbers never stops the sorting; Show numbers reports it.
 

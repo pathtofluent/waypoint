@@ -69,12 +69,12 @@ Waypoint only accepts a label for a word that is in the sentence, in the form `w
 
 ## Daily numbers (optional)
 
-Choose a "Daily numbers folder" in Settings and Waypoint keeps one line per day in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied, cards ready and cards waiting. Running again the same day replaces that day's line. It is a plain file for any tool that wants to show progress over time; [PathToFluent Logbook](https://github.com/pathtofluent) reads it. Leave the setting blank and nothing is written.
+Choose a "Daily numbers folder" in Settings and Waypoint keeps one line per day in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied, cards ready and cards waiting. Running again the same day replaces that day's line. It is a plain file for any tool that wants to show progress over time; [PathToFluent Logbook](https://github.com/pathtofluent/logbook) reads it. Leave the setting blank and nothing is written.
 
 ## Install and set up
 
-1. Build the add-on (below) or download it from Releases.
-2. In Anki: Tools > Add-ons > Install from file, then restart.
+1. Download **[pathtofluent_waypoint.ankiaddon](https://github.com/pathtofluent/waypoint/raw/main/download/pathtofluent_waypoint.ankiaddon)**.
+2. Double-click it, or in Anki: Tools > Add-ons > Install from file. Then restart Anki.
 3. Tools > PathToFluent Waypoint > Settings: tick your read-only decks and the decks to sort.
 
 Needs Anki 25.09 or newer. Do not run it alongside AnkiMorphs or MorphMan on the same decks.
@@ -86,7 +86,7 @@ python3 tests/test_core.py     # scoring tests
 python3 tests/test_gather.py   # subtitle gathering tests
 python3 tests/test_labels.py   # labels hand-off tests
 python3 tests/test_daily.py    # daily numbers file tests
-python3 tools/build.py         # writes dist/pathtofluent_waypoint.ankiaddon
+python3 tools/build.py         # writes download/pathtofluent_waypoint.ankiaddon
 ```
 
 `SPEC.md` holds the rules, examples and decisions behind the behaviour.
@@ -103,6 +103,7 @@ The feature set owes a lot to [AnkiMorphs](https://github.com/mortii/anki-morphs
 | [Waypoint](https://github.com/pathtofluent/waypoint) | Sorts sentence cards so the next one has exactly one unknown word |
 | [Checkpoint](https://github.com/pathtofluent/checkpoint) | A single Complete button for chapter and lesson cards |
 | [Scout](https://github.com/pathtofluent/scout) | Finds Netflix titles by country and original language |
+| [Logbook](https://github.com/pathtofluent/logbook) | Logs your time with a language and tracks hours, known words and milestones |
 
 ## Licence
 
