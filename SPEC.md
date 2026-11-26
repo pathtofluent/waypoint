@@ -41,6 +41,9 @@ When I study sentence cards made from Spanish TV subtitles, the next card should
 18. Each new card's "Unknown Words" field is filled in automatically. Once a card has been studied, that field is no longer changed.
 19. The add-on runs when Anki opens, after each sync, and from the Tools menu.
 20. When the subtitle folder's contents change, the bank is re-indexed on the next run.
+21. "Add subtitles to the bank" copies subtitle files from a chosen folder, at any depth, into the bank under that folder's name, keeping its subfolders.
+22. It keeps only files in the bank's language and reports how many it skipped in other languages.
+23. It never moves or changes the originals, and never overwrites a file already in the bank. An identical file is skipped; a different file with the same name and place is left alone and counted.
 
 ## 4. Examples
 Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
@@ -85,6 +88,8 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 | Blank start, seeded by the Assimil deck | I'll spend about 100 days there first |
 | Names detected by capitalisation | Spanish rarely capitalises ordinary words mid-sentence |
 | AI labelling done by a separate scheduled job, not by the add-on | No API key or extra bill; labelling isn't urgent |
+| Everything Waypoint needs lives in its own `waypoint` folder; no database, no shared folders | Standalone: works with no other add-on installed, and removing another add-on cannot break it |
+| Never overwrite a bank file, even when the source copy has changed | Safe to point at the same folder repeatedly; a changed file can be replaced by hand |
 | Drop sentences and chunks that occur once from the bank index | They carry no signal and are most of the size |
 
 ## 9. Open questions
@@ -117,4 +122,5 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - When done, update: status, the stage checkboxes, "Decisions made", and the log.
 
 ## 13. Log
+- 2026-11-26: 0.4.0. Subtitle gathering built into the add-on (rules 21-23), with tests. Gathering logic tested; the menu item and its windows untested inside Anki.
 - 2026-11-21: Designed in chat. Stages 1 and 2 written; core tested on sample data, Anki side untested. SubDeck updated to 1.2 with the two new fields. Next: stage 3 at home.

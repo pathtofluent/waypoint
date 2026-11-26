@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 (2026-11-26)
+- Added Tools > PathToFluent Waypoint > Add subtitles to the bank: pick a folder, and subtitle files in your language at any depth are copied into the bank. Originals are untouched and nothing already in the bank is overwritten.
+- Added a "Language of the subtitle bank" setting.
+- Show numbers now lists the files in each folder of the bank.
+- Added `tools/gather_subtitles.py` for filling the bank without opening Anki.
+- The frequency list now lives in `waypoint/frequency-list/`. Waypoint no longer creates a `dbs` folder; an existing `dbs/frequency.txt` is copied in once and otherwise only read as a fallback.
+
 ## 0.3.1 (2026-11-26)
 - Display names now read "PathToFluent Waypoint".
 - Recognises the note type "PathToFluent Trailblazer" as well as "SubDeck" when no decks are chosen.

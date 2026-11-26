@@ -17,16 +17,29 @@ Status: early. The scoring logic has tests; the parts that run inside Anki have 
 - While reviewing: **K** marks the card's words known and skips it, **L** browses cards with the same unknown word. The unknown word is highlighted on the card.
 - In the card browser: right-click > **Waypoint: learn now** pulls cards to the front.
 
+## Filling the subtitle bank
+
+**Tools > PathToFluent Waypoint > Add subtitles to the bank** lets you pick any folder. Every subtitle file inside it, at any depth, is checked, and the ones in your language are copied into the bank under the name of the folder you chose, keeping its subfolders.
+
+- Originals are never moved or changed.
+- Nothing already in the bank is overwritten, so you can point it at the same folder again after adding files to it and only the new ones are copied.
+- Files in other languages are skipped; the language is set in Settings.
+- Show numbers lists how many files each folder of the bank holds.
+
+To do the same without opening Anki: `python3 tools/gather_subtitles.py` (add `--dry-run` to preview).
+
 ## Files
 
 All inside your Anki profile folder:
 
 | Path | Purpose |
 |------|---------|
-| `dbs/frequency.txt` | Frequency list, one word per line, most common first |
+| `waypoint/frequency-list/` | Your frequency list: one file, one word per line, most common first |
 | `waypoint/subtitle-bank/` | Subtitle files (.srt, .vtt, .ass, .txt), subfolders allowed |
 | `waypoint/names.txt` | Names to ignore, one per line |
 | `waypoint/lists/` | The three readable word and sentence lists |
+
+Waypoint keeps everything in that one `waypoint` folder and uses no database. If you have a `dbs/frequency.txt` left by MorphMan or a similar add-on, Waypoint copies it into `waypoint/frequency-list/` the first time it runs and leaves the original alone.
 
 ## Install and set up
 
@@ -39,7 +52,8 @@ Needs Anki 25.09 or newer. Do not run it alongside AnkiMorphs or MorphMan on the
 ## Building
 
 ```
-python3 tests/test_core.py     # run the tests
+python3 tests/test_core.py     # scoring tests
+python3 tests/test_gather.py   # subtitle gathering tests
 python3 tools/build.py         # writes dist/pathtofluent_waypoint.ankiaddon
 ```
 

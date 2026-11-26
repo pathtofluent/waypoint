@@ -16,9 +16,11 @@ The easy way to change these is **Tools > Waypoint > Settings**.
 
 **exact_sentence_weight / chunk_weight**: inside the sentence score, how much an exact repeat counts versus common two- and three-word chunks.
 
-**frequency_list**: leave blank to use `dbs/frequency.txt` in your Anki profile folder (one word per line, most common first). Or give a full path to another file.
+**frequency_list**: leave blank to use the file in `waypoint/frequency-list/` in your Anki profile folder (one word per line, most common first). Or give a full path to another file.
 
 **subtitle_bank_folder**: full path to a folder of subtitle files (.srt, .vtt, .ass, .txt). Re-indexed automatically when its contents change.
+
+**bank_language**: the language kept by Tools > PathToFluent Waypoint > Add subtitles to the bank (es, en, fr, pt, it, de).
 
 **run_automatically**: reconcile when Anki opens and after each sync.
 

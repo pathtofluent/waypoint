@@ -14,14 +14,15 @@ It runs when Anki opens, after each sync, and from Tools > Waypoint > Reconcile 
 import json
 import os
 import re
+import shutil
 
 from aqt import dialogs, gui_hooks, mw
 from aqt.qt import *
-from aqt.utils import openFolder, showInfo, showWarning, tooltip
+from aqt.utils import askUser, openFolder, showInfo, showWarning, tooltip
 
-from . import core
+from . import core, gather
 
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 HELD, CLEARED, KNOWN, LEARN_NOW = "waypoint_held", "waypoint_cleared", "waypoint_known", "waypoint_learn_now"
 OLD_TAGS = {"ou_held": HELD, "ou_cleared": CLEARED, "ou_known": KNOWN, "ou_learn_now": LEARN_NOW}
 FIRST = "(first field)"
@@ -42,6 +43,7 @@ DEFAULTS = {
     "frequency_list": "",
     "subtitle_bank_folder": "",
     "run_automatically": True,
+    "bank_language": "es",
     "highlight_unknown_word": True,
     "highlight_color": "#2f9e77",
     "shortcut_mark_known": "K",
@@ -66,21 +68,18 @@ def data_dir(sub=""):
     return d
 
 
-def dbs_dir():
-    """<profile>/dbs, the same place MorphMan-style add-ons look for frequency.txt."""
-    d = os.path.join(mw.pm.profileFolder(), "dbs")
-    os.makedirs(d, exist_ok=True)
-    return d
+def legacy_freq():
+    """<profile>/dbs/frequency.txt, where MorphMan-style add-ons keep theirs. Read-only fallback."""
+    return os.path.join(mw.pm.profileFolder(), "dbs", "frequency.txt")
 
 
 def default_freq():
-    """dbs/frequency.txt first, then the first file in waypoint/frequency-list."""
-    path = os.path.join(dbs_dir(), "frequency.txt")
-    if os.path.isfile(path):
-        return path
+    """The first file in waypoint/frequency-list. Falls back to dbs/frequency.txt if that folder is empty."""
     folder = data_dir("frequency-list")
     files = sorted(f for f in os.listdir(folder) if not f.startswith("."))
-    return os.path.join(folder, files[0]) if files else ""
+    if files:
+        return os.path.join(folder, files[0])
+    return legacy_freq() if os.path.isfile(legacy_freq()) else ""
 
 
 def freq_path(conf):
@@ -131,8 +130,24 @@ def get_freq(conf):
     return _cache["freq"]
 
 
+def bank_folder(conf):
+    return os.path.expanduser(conf["subtitle_bank_folder"] or "") or data_dir("subtitle-bank")
+
+
+def bank_breakdown(folder):
+    """Subtitle files per top-level folder of the bank, largest first."""
+    counts = {}
+    for root, _, files in os.walk(folder):
+        n = sum(1 for f in files if f.lower().endswith(core.SUB_EXT) and not f.startswith("."))
+        if n:
+            rel = os.path.relpath(root, folder)
+            top = "(loose files)" if rel == "." else rel.split(os.sep)[0]
+            counts[top] = counts.get(top, 0) + n
+    return sorted(counts.items(), key=lambda x: (-x[1], x[0].lower()))
+
+
 def get_bank(conf, freq, force=False, names=None):
-    folder = os.path.expanduser(conf["subtitle_bank_folder"] or "") or data_dir("subtitle-bank")
+    folder = bank_folder(conf)
     tick = lambda n, name: mw.progress.update(label="Indexing subtitles: %d files\n%s" % (n, name[:60]))
     return core.Bank.load_or_build(folder, os.path.join(data_dir(), "bank_index.pkl"), freq, force, tick, names)
 
@@ -256,6 +271,7 @@ def reconcile(silent=False, rebuild=False):
         s["fields_updated"] = apply(plan, cards, conf)
         s["bank_files"] = bank.files if bank else 0
         s["bank_sentences"] = bank.total if bank else 0
+        s["bank_folders"] = bank_breakdown(bank_folder(conf))
         s["frequency_words"] = len(freq)
         s["frequency_file"] = freq_path(conf) if freq else "(none found)"
         save_stats(s)
@@ -286,7 +302,13 @@ def show_stats():
              ("Subtitle files in bank", "bank_files"), ("Sentences in bank", "bank_sentences"),
              ("Words in frequency list", "frequency_words")]
     text = "\n".join("" if l is None else "%s: %s" % (l[0], format(s.get(l[1], 0), ",")) for l in lines)
-    showInfo(text + "\nFrequency file: %s" % s.get("frequency_file", "(run Reconcile to see)"), title="PathToFluent Waypoint")
+    text += "\nFrequency file: %s" % s.get("frequency_file", "(run Reconcile to see)")
+    folders = s.get("bank_folders") or []
+    if folders:
+        text += "\n\nIn the subtitle bank:\n" + "\n".join("  %s: %s" % (name, format(n, ",")) for name, n in folders[:15])
+        if len(folders) > 15:
+            text += "\n  ...and %d more folders" % (len(folders) - 15)
+    showInfo(text, title="PathToFluent Waypoint")
 
 
 # ── settings window ─────────────────────────────────────────────────────────
@@ -324,11 +346,17 @@ class Settings(QDialog):
         form.addRow("Sentence field in decks to sort", self.sentence_field)
 
         self.freq = QLineEdit(conf["frequency_list"])
-        self.freq.setPlaceholderText("Blank = dbs/frequency.txt in your profile folder")
+        self.freq.setPlaceholderText("Blank = the file in Waypoint's frequency-list folder")
         form.addRow("Frequency list file", self.with_button(self.freq, self.pick_file))
         self.bank = QLineEdit(conf["subtitle_bank_folder"])
         self.bank.setPlaceholderText("Blank = the subtitle-bank folder")
         form.addRow("Subtitle bank folder", self.with_button(self.bank, self.pick_folder))
+
+        self.language = QComboBox()
+        for code, name in sorted(gather.LANGUAGES.items(), key=lambda x: x[1]):
+            self.language.addItem(name, code)
+        self.language.setCurrentIndex(max(0, self.language.findData(conf["bank_language"])))
+        form.addRow("Language of the subtitle bank", self.language)
 
         self.days, self.source_days = QSpinBox(), QSpinBox()
         for spin, value in ((self.days, conf["known_interval_days"]), (self.source_days, conf["source_known_interval_days"])):
@@ -405,6 +433,7 @@ class Settings(QDialog):
             "sentence_field": self.sentence_field.currentText(),
             "frequency_list": self.freq.text().strip(),
             "subtitle_bank_folder": self.bank.text().strip(),
+            "bank_language": self.language.currentData() or "es",
             "known_interval_days": self.days.value(),
             "source_known_interval_days": self.source_days.value(),
             "run_automatically": self.auto.isChecked(),
@@ -418,14 +447,54 @@ def open_settings():
     Settings(mw).exec()
 
 
+def add_subtitles():
+    """Tools > PathToFluent Waypoint > Add subtitles to the bank."""
+    conf = cfg()
+    lang, bank = conf["bank_language"], bank_folder(conf)
+    source = QFileDialog.getExistingDirectory(mw, "Choose the folder that holds your subtitle files",
+                                              os.path.expanduser("~"))
+    if not source:
+        return
+    if gather.inside(source, bank):
+        showInfo("That folder is already inside the subtitle bank.")
+        return
+    mw.progress.start(immediate=True, label="Looking for subtitle files...")
+    try:
+        plan = gather.scan(source, bank, lang,
+                           tick=lambda n: mw.progress.update(label="Checked %s subtitle files..." % format(n, ",")))
+    except Exception as e:
+        showWarning("Couldn't read that folder:\n%s: %s" % (type(e).__name__, e))
+        return
+    finally:
+        mw.progress.finish()
+    text = "\n".join(gather.summary(plan, lang))
+    if not plan["to_copy"]:
+        showInfo(text + "\n\nNothing new to copy.", title="PathToFluent Waypoint")
+        return
+    question = "%s\n\nCopy %s file(s) into the subtitle bank? Your originals are not moved or changed." % (
+        text, format(len(plan["to_copy"]), ","))
+    if not askUser(question, title="PathToFluent Waypoint"):
+        return
+    mw.progress.start(immediate=True, label="Copying subtitle files...")
+    try:
+        copied, failed = gather.copy(plan, tick=lambda n: mw.progress.update(label="Copied %s files..." % format(n, ",")))
+    finally:
+        mw.progress.finish()
+    if failed:
+        showWarning("%d file(s) could not be copied." % len(failed))
+    tooltip("Added %s subtitle file(s) to the bank. Re-indexing..." % format(copied, ","))
+    if copied:
+        reconcile()
+
+
 def open_data_folder():
     for sub in FOLDERS:
         data_dir(sub)
     openFolder(data_dir())
 
 
-def open_dbs_folder():
-    openFolder(dbs_dir())
+def open_freq_folder():
+    openFolder(data_dir("frequency-list"))
 
 
 # ── while reviewing: mark known, browse same word, highlight ───────────────
@@ -552,6 +621,9 @@ def migrate():
         new = os.path.join(mw.pm.profileFolder(), "waypoint")
         if os.path.isdir(old) and not os.path.exists(new):
             os.rename(old, new)
+        own = data_dir("frequency-list")
+        if not any(not f.startswith(".") for f in os.listdir(own)) and os.path.isfile(legacy_freq()):
+            shutil.copy2(legacy_freq(), os.path.join(own, "frequency.txt"))   # a copy; the original stays put
         for old_tag, new_tag in OLD_TAGS.items():
             if mw.col.find_notes("tag:" + old_tag):
                 mw.col.tags.rename(old_tag, new_tag)
@@ -564,7 +636,6 @@ def auto():
     try:
         for sub in FOLDERS:
             data_dir(sub)
-        dbs_dir()
         names_path()
     except OSError:
         pass
@@ -575,12 +646,13 @@ def auto():
 
 menu = QMenu("PathToFluent Waypoint", mw)
 for label, fn in (("Reconcile cards", lambda: reconcile()),
+                  ("Add subtitles to the bank...", add_subtitles),
                   ("Rebuild subtitle bank and reconcile", lambda: reconcile(rebuild=True)),
                   ("Show numbers", show_stats),
                   ("Mark this card known and skip", mark_known_and_skip),
                   ("Browse cards with the same unknown word", browse_same_word),
                   ("Open data folder", open_data_folder),
-                  ("Open dbs folder (frequency.txt goes here)", open_dbs_folder),
+                  ("Open frequency-list folder", open_freq_folder),
                   ("Settings...", open_settings)):
     a = QAction(label, mw)
     a.triggered.connect(fn)
