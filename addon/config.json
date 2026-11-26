@@ -1,0 +1,25 @@
+{
+    "source_decks": {},
+    "managed_decks": [],
+    "managed_note_types": [
+        "PathToFluent Trailblazer",
+        "SubDeck"
+    ],
+    "sentence_field": "Sentence",
+    "unknown_field": "Unknown Words",
+    "labels_field": "Labels",
+    "known_interval_days": 21,
+    "source_known_interval_days": 21,
+    "count_learning_as_known": false,
+    "word_weight": 1.0,
+    "sentence_weight": 1.0,
+    "exact_sentence_weight": 0.5,
+    "chunk_weight": 0.5,
+    "frequency_list": "",
+    "subtitle_bank_folder": "",
+    "run_automatically": true,
+    "highlight_unknown_word": true,
+    "highlight_color": "#2f9e77",
+    "shortcut_mark_known": "K",
+    "shortcut_browse_same_word": "L"
+}

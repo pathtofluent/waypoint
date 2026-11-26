@@ -1,0 +1,16 @@
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+meta.json
+user_files/
+*.pkl
+
+# never commit secrets
+.env
+.env.*
+*.pem
+*.key
+secrets*
+*api_key*
+*apikey*
