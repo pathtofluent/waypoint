@@ -67,6 +67,10 @@ Cards need the fields above. **Tools > PathToFluent Waypoint > Prepare a note ty
 
 Waypoint only accepts a label for a word that is in the sentence, in the form `word#gloss` or `NAME`; anything else is ignored. Cards need a `Labels` field (Trailblazer cards have one). Waypoint never contacts any service itself.
 
+## Daily numbers (optional)
+
+Choose a "Daily numbers folder" in Settings and Waypoint keeps one line per day in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied, cards ready and cards waiting. Running again the same day replaces that day's line. It is a plain file for any tool that wants to show progress over time; [PathToFluent Logbook](https://github.com/pathtofluent) reads it. Leave the setting blank and nothing is written.
+
 ## Install and set up
 
 1. Build the add-on (below) or download it from Releases.
@@ -81,6 +85,7 @@ Needs Anki 25.09 or newer. Do not run it alongside AnkiMorphs or MorphMan on the
 python3 tests/test_core.py     # scoring tests
 python3 tests/test_gather.py   # subtitle gathering tests
 python3 tests/test_labels.py   # labels hand-off tests
+python3 tests/test_daily.py    # daily numbers file tests
 python3 tools/build.py         # writes dist/pathtofluent_waypoint.ankiaddon
 ```
 

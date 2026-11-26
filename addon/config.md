@@ -26,6 +26,8 @@ The easy way to change these is **Tools > Waypoint > Settings**.
 
 **labels_batch_size**: how many cards are offered for labelling at a time.
 
+**stats_folder**: folder where Waypoint keeps `waypoint_stats.json`, one line of numbers per day (known words, words being learned, cards studied, cards waiting). Blank turns it off. Set it in Settings with the Browse button.
+
 **usefulness_weight**: how much a card's 1-5 usefulness rating from the labels hand-off counts towards its score (0 turns it off). Unrated cards count as the middle of the scale.
 
 **usefulness_goal**: what "useful" means for you, in a sentence. Passed to whoever does the rating. Blank = everyday conversation at an educated adult's level.

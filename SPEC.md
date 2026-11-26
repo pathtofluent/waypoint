@@ -57,6 +57,8 @@ When I study sentence cards made from Spanish TV subtitles, the next card should
 34. "New cards show" is a setting with two values, bilingual and monolingual. Each sorted card carries the matching tag. Changing the setting re-tags cards not yet studied; a studied card keeps its tag.
 35. A card already labelled is offered again only for a definition it lacks.
 36. "Prepare a note type" adds any missing Waypoint fields to a chosen note type and, for a Trailblazer note type, installs the current layout after saving the old one.
+37. When a "Daily numbers folder" is chosen, each run keeps one line for that day in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied so far, cards ready, cards waiting. A later run the same day replaces the line. With no folder chosen, nothing is written.
+38. A numbers file that can't be read is renamed aside and a new one started. A failure to write the numbers never stops the sorting.
 
 ## 4. Examples
 Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
@@ -140,6 +142,7 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - When done, update: status, the stage checkboxes, "Decisions made", and the log.
 
 ## 13. Log
+- 2026-11-26: 0.7.0. Daily numbers file (rules 37-38) for PathToFluent Logbook or any other tool, with tests for the file handling. The setting and the write at reconcile are untested inside Anki.
 - 2026-11-26: 0.6.0. Definitions, bilingual/monolingual tags and "Prepare a note type" built (rules 32-36), with tests for the definition format. All of the Anki side untested. Planned path: primer deck (~2,000 cards), bilingual (~2,000), then monolingual towards 10,000.
 - 2026-11-26: 0.5.0. Labels hand-off built (rules 24-31, including the usefulness rating), with tests for the format and validation. Reading and writing cards inside Anki untested.
 - 2026-11-26: 0.4.0. Subtitle gathering built into the add-on (rules 21-23), with tests. Gathering logic tested; the menu item and its windows untested inside Anki.

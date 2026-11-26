@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0 (2026-11-26)
+- New optional setting "Daily numbers folder". When a folder is chosen, each run keeps that day's line in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied, cards ready, cards waiting. A second run on the same day replaces the line. Off unless a folder is chosen.
+- A damaged numbers file is renamed aside, never overwritten. A problem writing the numbers never stops the sorting; Show numbers reports it.
+
 ## 0.6.0 (2026-11-26)
 - The hand-off now carries definitions for cards with one unknown word: its dictionary form, a definition in your language and one in the language you're learning, plus a dictionary link. Validated on the way in (plain text, right word, sensible length).
 - New setting "New cards show": bilingual or monolingual. Recorded as a tag per card; studied cards keep the mode they were learned in.

@@ -25,6 +25,7 @@
     "bank_language": "es",
     "labels_folder": "",
     "labels_batch_size": 300,
+    "stats_folder": "",
     "usefulness_weight": 0.25,
     "usefulness_goal": "",
     "lemma_field": "Lemma",

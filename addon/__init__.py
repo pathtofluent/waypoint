@@ -11,6 +11,7 @@ useful sentence containing exactly one word you don't know yet.
 Tools > Waypoint > Settings to choose the decks and files.
 It runs when Anki opens, after each sync, and from Tools > Waypoint > Reconcile cards.
 """
+import datetime
 import html
 import json
 import os
@@ -22,9 +23,9 @@ from aqt import dialogs, gui_hooks, mw
 from aqt.qt import *
 from aqt.utils import askUser, openFolder, showInfo, showWarning, tooltip
 
-from . import core, gather, labels, layout
+from . import core, daily, gather, labels, layout
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 HELD, CLEARED, KNOWN, LEARN_NOW = "waypoint_held", "waypoint_cleared", "waypoint_known", "waypoint_learn_now"
 LABELLED = "waypoint_labelled"
 MODE_BI, MODE_MONO = "waypoint_bilingual", "waypoint_monolingual"   # which definition a card shows
@@ -58,6 +59,7 @@ DEFAULTS = {
     "bank_language": "es",
     "labels_folder": "",                # hand-off folder for labels; blank = labelling off
     "labels_batch_size": 300,
+    "stats_folder": "",                 # folder for the daily numbers file; blank = off
     "usefulness_weight": 0.25,
     "usefulness_goal": "",              # blank = everyday conversation at an educated adult's level
     "highlight_unknown_word": True,
@@ -431,6 +433,7 @@ def reconcile(silent=False, rebuild=False):
         except Exception as e:
             label_stats["labels_error"] = "Writing the cards to label failed: %s: %s" % (type(e).__name__, e)
         s.update(label_stats)
+        s["stats_note"] = write_daily(conf, s, cards)
         s["bank_folders"] = bank_breakdown(bank_folder(conf))
         s["frequency_words"] = len(freq)
         s["frequency_file"] = freq_path(conf) if freq else "(none found)"
@@ -448,6 +451,20 @@ def reconcile(silent=False, rebuild=False):
         showWarning("\n".join(sorted(missing)))
     if not silent:
         tooltip("Waypoint: %(ready)d ready, %(fallback)d review-only, %(held)d waiting, %(cleared)d cleared" % s)
+
+
+def write_daily(conf, stats, cards):
+    """Keep today's line in the daily numbers file, if a folder is chosen. Never stops the sorting."""
+    folder = os.path.expanduser(conf["stats_folder"] or "")
+    if not folder:
+        return ""
+    if not os.path.isdir(folder):
+        return "The folder for daily numbers can't be found: %s" % folder
+    try:
+        studied = sum(1 for c in cards if c["type"] != 0)
+        return daily.write(folder, daily.day_line(stats, studied, conf["bank_language"], datetime.date.today()))
+    except Exception as e:
+        return "Writing the daily numbers failed: %s: %s" % (type(e).__name__, e)
 
 
 def show_stats():
@@ -473,6 +490,8 @@ def show_stats():
                 s.get("labels_rejected", 0), s.get("labels_unknown_cards", 0))
         if s.get("labels_error"):
             text += "\n  Problem: %s" % s["labels_error"]
+    if cfg()["stats_folder"]:
+        text += "\n\nDaily numbers: %s" % (s.get("stats_note") or "written to %s" % daily.STATS_FILE)
     folders = s.get("bank_folders") or []
     if folders:
         text += "\n\nIn the subtitle bank:\n" + "\n".join("  %s: %s" % (name, format(n, ",")) for name, n in folders[:15])
@@ -525,6 +544,10 @@ class Settings(QDialog):
         self.labels = QLineEdit(conf["labels_folder"])
         self.labels.setPlaceholderText("Blank = labelling off")
         form.addRow("Labels hand-off folder", self.with_button(self.labels, self.pick_labels))
+
+        self.stats = QLineEdit(conf["stats_folder"])
+        self.stats.setPlaceholderText("Blank = off")
+        form.addRow("Daily numbers folder", self.with_button(self.stats, self.pick_stats))
 
         self.mode = QComboBox()
         self.mode.addItem("An English definition (bilingual)", "bilingual")
@@ -605,6 +628,12 @@ class Settings(QDialog):
         if path:
             self.labels.setText(path)
 
+    def pick_stats(self):
+        path = QFileDialog.getExistingDirectory(self, "Choose the folder for the daily numbers file",
+                                                self.stats.text().strip() or os.path.expanduser("~"))
+        if path:
+            self.stats.setText(path)
+
     def save(self):
         source, managed = self.checked(self.source), self.checked(self.managed)
         both = sorted(set(source) & set(managed))
@@ -618,6 +647,10 @@ class Settings(QDialog):
             except OSError as e:
                 showWarning("Couldn't create the labels hand-off folder:\n%s" % e.strerror)
                 return
+        numbers = os.path.expanduser(self.stats.text().strip())
+        if numbers and not os.path.isdir(numbers):
+            showWarning("The folder for daily numbers doesn't exist:\n%s" % numbers)
+            return
         field = self.source_field.currentText()
         conf = cfg()
         conf.update({
@@ -628,6 +661,7 @@ class Settings(QDialog):
             "subtitle_bank_folder": self.bank.text().strip(),
             "bank_language": self.language.currentData() or "es",
             "labels_folder": self.labels.text().strip(),
+            "stats_folder": self.stats.text().strip(),
             "card_mode": self.mode.currentData() or "bilingual",
             "known_interval_days": self.days.value(),
             "source_known_interval_days": self.source_days.value(),
