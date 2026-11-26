@@ -22,6 +22,20 @@ The easy way to change these is **Tools > Waypoint > Settings**.
 
 **bank_language**: the language kept by Tools > PathToFluent Waypoint > Add subtitles to the bank (es, en, fr, pt, it, de).
 
+**labels_folder**: folder for the labels hand-off (see the README). Blank turns labelling off. Set it in Settings with the Browse button.
+
+**labels_batch_size**: how many cards are offered for labelling at a time.
+
+**usefulness_weight**: how much a card's 1-5 usefulness rating from the labels hand-off counts towards its score (0 turns it off). Unrated cards count as the middle of the scale.
+
+**usefulness_goal**: what "useful" means for you, in a sentence. Passed to whoever does the rating. Blank = everyday conversation at an educated adult's level.
+
+**card_mode**: what the back of new cards shows, "bilingual" or "monolingual". Set it in Settings.
+
+**dictionary_url / dictionary_name**: where the Dictionary Link points; `{lemma}` is replaced by the word's dictionary form. Empty url = no link.
+
+**lemma_field / definition_field / definition_mono_field / dictionary_field**: field names for definitions.
+
 **run_automatically**: reconcile when Anki opens and after each sync.
 
 Tags used: `waypoint_held` (waiting, suspended by the add-on) and `waypoint_cleared` (sentence already known).
@@ -30,4 +44,4 @@ Tags used: `waypoint_held` (waiting, suspended by the add-on) and `waypoint_clea
 
 **shortcut_mark_known / shortcut_browse_same_word**: keys used while reviewing. Leave empty to turn one off.
 
-More tags: `waypoint_known` (you marked the card's words as known) and `waypoint_learn_now` (pulled to the front by hand).
+More tags: `waypoint_bilingual` / `waypoint_monolingual` (which definition the card shows), `waypoint_useful_1` to `waypoint_useful_5` (usefulness rating), `waypoint_labelled` (the card has been checked for names and second meanings), `waypoint_known` (you marked the card's words as known) and `waypoint_learn_now` (pulled to the front by hand).

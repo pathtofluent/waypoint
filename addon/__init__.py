@@ -6,24 +6,29 @@ useful sentence containing exactly one word you don't know yet.
 
   * Read-only decks (e.g. an Assimil deck) are never touched; as you learn their
     cards, their words and sentences count as known.
-  * Sorted decks (e.g. your SubDeck decks) are scored, sorted, held back or cleared.
+  * Sorted decks (e.g. your Trailblazer decks) are scored, sorted, held back or cleared.
 
 Tools > Waypoint > Settings to choose the decks and files.
 It runs when Anki opens, after each sync, and from Tools > Waypoint > Reconcile cards.
 """
+import html
 import json
 import os
 import re
 import shutil
+import time
 
 from aqt import dialogs, gui_hooks, mw
 from aqt.qt import *
 from aqt.utils import askUser, openFolder, showInfo, showWarning, tooltip
 
-from . import core, gather
+from . import core, gather, labels, layout
 
-VERSION = "0.4.0"
+VERSION = "0.6.0"
 HELD, CLEARED, KNOWN, LEARN_NOW = "waypoint_held", "waypoint_cleared", "waypoint_known", "waypoint_learn_now"
+LABELLED = "waypoint_labelled"
+MODE_BI, MODE_MONO = "waypoint_bilingual", "waypoint_monolingual"   # which definition a card shows
+USEFUL = "waypoint_useful_"            # + 1..5, the usefulness rating from the labels hand-off
 OLD_TAGS = {"ou_held": HELD, "ou_cleared": CLEARED, "ou_known": KNOWN, "ou_learn_now": LEARN_NOW}
 FIRST = "(first field)"
 DEFAULTS = {
@@ -33,6 +38,13 @@ DEFAULTS = {
     "sentence_field": "Sentence",
     "unknown_field": "Unknown Words",
     "labels_field": "Labels",
+    "lemma_field": "Lemma",
+    "definition_field": "Definition",
+    "definition_mono_field": "Definition Monolingual",
+    "dictionary_field": "Dictionary Link",
+    "dictionary_url": "https://dle.rae.es/{lemma}",
+    "dictionary_name": "RAE",
+    "card_mode": "bilingual",           # what new cards show: "bilingual" or "monolingual"
     "known_interval_days": 21,
     "source_known_interval_days": 21,
     "count_learning_as_known": False,
@@ -44,6 +56,10 @@ DEFAULTS = {
     "subtitle_bank_folder": "",
     "run_automatically": True,
     "bank_language": "es",
+    "labels_folder": "",                # hand-off folder for labels; blank = labelling off
+    "labels_batch_size": 300,
+    "usefulness_weight": 0.25,
+    "usefulness_goal": "",              # blank = everyday conversation at an educated adult's level
     "highlight_unknown_word": True,
     "highlight_color": "#2f9e77",
     "shortcut_mark_known": "K",
@@ -205,7 +221,17 @@ def collect(conf):
             cards.append({"cid": cid, "nid": nid, "mid": mid, "role": "managed", "sentence": f[s_ord],
                           "labels": f[l_ord] if l_ord is not None else "", "type": ctype, "ivl": ivl,
                           "suspended": queue == -1, "held": HELD in tagset, "cleared": CLEARED in tagset,
-                          "known_manual": KNOWN in tagset, "learn_now": LEARN_NOW in tagset})
+                          "known_manual": KNOWN in tagset, "learn_now": LEARN_NOW in tagset,
+                          "labelled": LABELLED in tagset, "can_label": l_ord is not None,
+                          "can_define": None not in (field_ord(mid, conf["definition_field"]),
+                                                     field_ord(mid, conf["definition_mono_field"])),
+                          "definition": "".join(f[o] for o in (field_ord(mid, conf["definition_field"]),
+                                                               field_ord(mid, conf["definition_mono_field"]))
+                                                if o is not None),
+                          "mode": "mono" if MODE_MONO in tagset else "bi" if MODE_BI in tagset else None,
+                          "usefulness": next((int(t[len(USEFUL):]) for t in tagset
+                                              if t.startswith(USEFUL) and t[len(USEFUL):] in "12345"
+                                              and len(t) == len(USEFUL) + 1), None)})
     for deck, fld in conf["source_decks"].items():
         for cid, nid, ctype, queue, ivl, mid, flds, tags in rows(mw.col.find_cards("deck:" + quoted(deck))):
             if cid in seen:
@@ -215,6 +241,119 @@ def collect(conf):
                           "sentence": flds.split("\x1f")[o or 0], "labels": "", "type": ctype, "ivl": ivl,
                           "known_manual": KNOWN in tags.split()})
     return cards, missing
+
+
+# ── labels hand-off ─────────────────────────────────────────────────────────
+def labels_dir(conf):
+    folder = os.path.expanduser(conf["labels_folder"] or "")
+    return folder if folder and os.path.isdir(folder) else ""
+
+
+def import_labels(conf):
+    """Read the answers file if there is one, store the valid labels on their cards, set the file aside."""
+    folder = labels_dir(conf)
+    path = os.path.join(folder, labels.ANSWERS) if folder else ""
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        data = labels.load_answers(path)
+    except Exception as e:
+        os.replace(path, os.path.join(folder, "waypoint_labels.unreadable.json"))
+        return {"labels_error": "The answers file couldn't be read (%s). It was renamed to "
+                                "waypoint_labels.unreadable.json." % type(e).__name__}
+    keys = set()
+    for name in ("labels", "usefulness", "definitions"):
+        table = data.get(name) if isinstance(data, dict) else None
+        keys.update(table if isinstance(table, dict) else ())
+    sentences, notes, targets = {}, {}, {}
+    for key in keys:
+        try:
+            note = mw.col.get_note(int(key))
+        except Exception:
+            continue
+        s_ord = pick_ord(note.mid, [conf["sentence_field"], "Sentence", "Expression"])
+        if s_ord is not None and field_ord(note.mid, conf["labels_field"]) is not None:
+            sentences[int(key)], notes[int(key)] = core.plain(note.fields[s_ord]), note
+            u_ord = field_ord(note.mid, conf["unknown_field"])
+            words = [w for w in re.sub(r"<[^>]+>", "", note.fields[u_ord]).split(",") if w.strip()] \
+                if u_ord is not None else []
+            if len(words) == 1 and None not in (field_ord(note.mid, conf["definition_field"]),
+                                                field_ord(note.mid, conf["definition_mono_field"])):
+                targets[int(key)] = words[0]
+    parsed, rejected, strangers = labels.parse_answers(data, sentences)
+    ratings, bad_ratings = labels.parse_usefulness(data, set(sentences))
+    defs, bad_defs = labels.parse_definitions(data, targets)
+    for nid in set(parsed) | set(ratings) | set(defs):
+        note = notes[nid]
+        if parsed.get(nid):
+            note.fields[field_ord(note.mid, conf["labels_field"])] = parsed[nid]
+        if nid in defs:
+            d = defs[nid]
+            marker = html.escape(d["word"], quote=True)
+            wrap = lambda text: '<span data-word="%s">%s</span>' % (marker, html.escape(text)) if text else ""
+            note.fields[field_ord(note.mid, conf["definition_field"])] = wrap(d["en"])
+            note.fields[field_ord(note.mid, conf["definition_mono_field"])] = wrap(d["es"])
+            for name, value in ((conf["lemma_field"], html.escape(d["lemma"])),
+                                (conf["dictionary_field"], labels.dictionary_link(
+                                    conf["dictionary_url"], conf["dictionary_name"], d["lemma"]))):
+                o = field_ord(note.mid, name)
+                if o is not None:
+                    note.fields[o] = value
+        if nid in ratings:
+            for tag in [t for t in note.tags if t.startswith(USEFUL)]:
+                note.remove_tag(tag)
+            note.add_tag(USEFUL + str(ratings[nid]))
+        if nid in parsed:
+            note.add_tag(LABELLED)
+        mw.col.update_note(note)
+    os.replace(path, os.path.join(folder, labels.IMPORTED))
+    return {"labels_imported": len(set(parsed) | set(ratings) | set(defs)), "labels_rated": len(ratings),
+            "labels_defined": len(defs), "labels_rejected": rejected + bad_ratings + bad_defs,
+            "labels_unknown_cards": strangers}
+
+
+def export_labels(conf, cards, plan):
+    """Write the list of cards that still need a look, most useful first."""
+    folder = labels_dir(conf)
+    if not folder:
+        return {}
+    front = [cid for _, cid, _ in plan["ready"]] + [cid for _, cid, _ in plan["fallback"]]
+    place = {cid: i for i, cid in enumerate(front)}
+    unknown_of = lambda c: [w.strip() for w in plan["unknown_field"].get(c["nid"], "").split(",") if w.strip()]
+    def needs_of(c):
+        need = []
+        if c.get("can_label") and not c.get("labelled") and not c["labels"].strip():
+            need.append("labels")
+        words = unknown_of(c)
+        if c.get("can_define") and len(words) == 1 and \
+                'data-word="%s"' % html.escape(labels.base_word(words[0]), quote=True) not in c.get("definition", ""):
+            need.append("definition")
+        return need
+
+    todo = {}
+    for c in cards:
+        if c["role"] == "managed" and c["type"] == 0 and not c.get("cleared") and not c.get("known_manual") \
+                and not (c.get("suspended") and not c.get("held")) and c["nid"] not in todo:
+            need = needs_of(c)
+            if need:
+                todo[c["nid"]] = dict(c, needs=need)
+    ordered = sorted(todo.values(), key=lambda c: (0, place[c["cid"]], 0) if c["cid"] in place
+                     else (1, len(unknown_of(c)), c["cid"]))
+    senses = labels.senses_in_use(core.parse_labels(c["labels"]) for c in cards if c.get("labels"))
+    doc = labels.build_export([{"id": c["nid"], "sentence": core.plain(c["sentence"]), "unknown": unknown_of(c),
+                                "needs": c["needs"]} for c in ordered], senses, conf["bank_language"], conf["labels_batch_size"],
+                              conf["usefulness_goal"] or labels.DEFAULT_GOAL)
+    with open(os.path.join(folder, labels.TO_LABEL), "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, indent=1)
+    howto = os.path.join(folder, labels.HOWTO)
+    if not os.path.isfile(howto) or open(howto, encoding="utf-8").read() != labels.HOWTO_TEXT:
+        with open(howto, "w", encoding="utf-8") as f:
+            f.write(labels.HOWTO_TEXT)
+    return {"labels_waiting": sum(1 for c in ordered if "labels" in c["needs"]),
+            "definitions_waiting": sum(1 for c in ordered if "definition" in c["needs"]),
+            "definitions_done": len({c["nid"] for c in cards if c.get("definition")}),
+            "labels_done": len({c["nid"] for c in cards if c.get("labelled")}),
+            "labels_rated_total": len({c["nid"] for c in cards if c.get("usefulness")})}
 
 
 def apply(plan, cards, conf):
@@ -237,6 +376,17 @@ def apply(plan, cards, conf):
     if order:
         mw.col.sched.reposition_new_cards(card_ids=order, starting_from=0, step_size=1,
                                           randomize=False, shift_existing=False)
+    # Which definition a card shows. New cards follow the setting; a card you have studied keeps its own.
+    want_key, want, other = ("mono", MODE_MONO, MODE_BI) if conf["card_mode"] == "monolingual" \
+        else ("bi", MODE_BI, MODE_MONO)
+    managed = [c for c in cards if c["role"] == "managed"]
+    switch = sorted({c["nid"] for c in managed if c["type"] == 0 and c.get("mode") != want_key})
+    untagged = sorted({c["nid"] for c in managed if c["type"] != 0 and c.get("mode") is None})
+    if switch:
+        mw.col.tags.bulk_remove(switch, other)
+        mw.col.tags.bulk_add(switch, want)
+    if untagged:
+        mw.col.tags.bulk_add(untagged, MODE_BI)
     changed = 0
     by_nid = {c["nid"]: c for c in cards}
     for nid, text in plan["unknown_field"].items():
@@ -261,6 +411,11 @@ def reconcile(silent=False, rebuild=False):
         return
     mw.progress.start(immediate=True, label="Waypoint: reading cards...")
     try:
+        label_stats = {}
+        try:
+            label_stats.update(import_labels(conf))
+        except Exception as e:                       # labelling must never stop the sorting
+            label_stats["labels_error"] = "Importing labels failed: %s: %s" % (type(e).__name__, e)
         cards, missing = collect(conf)
         freq = get_freq(conf)
         names = read_names()
@@ -271,6 +426,11 @@ def reconcile(silent=False, rebuild=False):
         s["fields_updated"] = apply(plan, cards, conf)
         s["bank_files"] = bank.files if bank else 0
         s["bank_sentences"] = bank.total if bank else 0
+        try:
+            label_stats.update(export_labels(conf, cards, plan))
+        except Exception as e:
+            label_stats["labels_error"] = "Writing the cards to label failed: %s: %s" % (type(e).__name__, e)
+        s.update(label_stats)
         s["bank_folders"] = bank_breakdown(bank_folder(conf))
         s["frequency_words"] = len(freq)
         s["frequency_file"] = freq_path(conf) if freq else "(none found)"
@@ -303,6 +463,16 @@ def show_stats():
              ("Words in frequency list", "frequency_words")]
     text = "\n".join("" if l is None else "%s: %s" % (l[0], format(s.get(l[1], 0), ",")) for l in lines)
     text += "\nFrequency file: %s" % s.get("frequency_file", "(run Reconcile to see)")
+    if cfg()["labels_folder"]:
+        text += "\n\nLabels hand-off:\n  Cards checked so far: %s\n  Cards with a usefulness rating: %s\n  Cards with a definition: %s\n  Cards waiting to be checked: %s\n  Cards waiting for a definition: %s\n  Read in on the last run: %s" % (
+            format(s.get("labels_done", 0), ","), format(s.get("labels_rated_total", 0), ","),
+            format(s.get("definitions_done", 0), ","), format(s.get("labels_waiting", 0), ","),
+            format(s.get("definitions_waiting", 0), ","), format(s.get("labels_imported", 0), ","))
+        if s.get("labels_rejected") or s.get("labels_unknown_cards"):
+            text += "\n  Ignored on the last run: %d invalid label(s), rating(s) or definition(s), %d card(s) not found" % (
+                s.get("labels_rejected", 0), s.get("labels_unknown_cards", 0))
+        if s.get("labels_error"):
+            text += "\n  Problem: %s" % s["labels_error"]
     folders = s.get("bank_folders") or []
     if folders:
         text += "\n\nIn the subtitle bank:\n" + "\n".join("  %s: %s" % (name, format(n, ",")) for name, n in folders[:15])
@@ -351,6 +521,16 @@ class Settings(QDialog):
         self.bank = QLineEdit(conf["subtitle_bank_folder"])
         self.bank.setPlaceholderText("Blank = the subtitle-bank folder")
         form.addRow("Subtitle bank folder", self.with_button(self.bank, self.pick_folder))
+
+        self.labels = QLineEdit(conf["labels_folder"])
+        self.labels.setPlaceholderText("Blank = labelling off")
+        form.addRow("Labels hand-off folder", self.with_button(self.labels, self.pick_labels))
+
+        self.mode = QComboBox()
+        self.mode.addItem("An English definition (bilingual)", "bilingual")
+        self.mode.addItem("A definition in the language I'm learning (monolingual)", "monolingual")
+        self.mode.setCurrentIndex(max(0, self.mode.findData(conf["card_mode"])))
+        form.addRow("New cards show", self.mode)
 
         self.language = QComboBox()
         for code, name in sorted(gather.LANGUAGES.items(), key=lambda x: x[1]):
@@ -419,12 +599,25 @@ class Settings(QDialog):
         if path:
             self.bank.setText(path)
 
+    def pick_labels(self):
+        path = QFileDialog.getExistingDirectory(self, "Choose the folder for the labels hand-off",
+                                                self.labels.text().strip() or os.path.expanduser("~"))
+        if path:
+            self.labels.setText(path)
+
     def save(self):
         source, managed = self.checked(self.source), self.checked(self.managed)
         both = sorted(set(source) & set(managed))
         if both:
             showWarning("A deck can't be both read-only and sorted:\n" + "\n".join(both))
             return
+        hand_off = os.path.expanduser(self.labels.text().strip())
+        if hand_off and not os.path.isdir(hand_off):
+            try:
+                os.makedirs(hand_off)
+            except OSError as e:
+                showWarning("Couldn't create the labels hand-off folder:\n%s" % e.strerror)
+                return
         field = self.source_field.currentText()
         conf = cfg()
         conf.update({
@@ -434,6 +627,8 @@ class Settings(QDialog):
             "frequency_list": self.freq.text().strip(),
             "subtitle_bank_folder": self.bank.text().strip(),
             "bank_language": self.language.currentData() or "es",
+            "labels_folder": self.labels.text().strip(),
+            "card_mode": self.mode.currentData() or "bilingual",
             "known_interval_days": self.days.value(),
             "source_known_interval_days": self.source_days.value(),
             "run_automatically": self.auto.isChecked(),
@@ -485,6 +680,67 @@ def add_subtitles():
     tooltip("Added %s subtitle file(s) to the bank. Re-indexing..." % format(copied, ","))
     if copied:
         reconcile()
+
+
+def prepare_note_type():
+    """Tools > PathToFluent Waypoint > Prepare a note type: add the fields Waypoint uses, and its layout."""
+    mm = mw.col.models
+    names = sorted(n.name for n in mm.all_names_and_ids())
+    likely = next((n for n in names if n.startswith(("PathToFluent Trailblazer", "SubDeck"))), names[0])
+    name, ok = QInputDialog.getItem(mw, "PathToFluent Waypoint", "Note type to prepare:", names,
+                                    names.index(likely), False)
+    if not ok or not name:
+        return
+    m = mm.by_name(name)
+    have = [f["name"] for f in m["flds"]]
+    missing = [f for f in layout.FIELDS if f not in have]
+    ours = name.startswith(("PathToFluent Trailblazer", "SubDeck")) and len(m["tmpls"]) == 1
+    current = (m["tmpls"][0]["qfmt"], m["tmpls"][0]["afmt"], m["css"])
+    new_layout = ours and current != (layout.FRONT, layout.BACK, layout.CSS)
+    # Cards made before Trailblazer got its name still carry the old note type name and tag.
+    rename_to = "PathToFluent Trailblazer" if name == "SubDeck" and not mm.by_name("PathToFluent Trailblazer") else ""
+    if not missing and not new_layout and not rename_to:
+        showInfo("'%s' already has everything Waypoint uses." % name)
+        return
+    lines = []
+    if rename_to:
+        lines.append("Rename this note type from 'SubDeck' to '%s', and the 'SubDeck' tag on its cards to "
+                     "'Trailblazer'. Only the names change." % rename_to)
+    if missing:
+        lines.append("Add %d field(s): %s." % (len(missing), ", ".join(missing)))
+        lines.append("Adding fields makes Anki ask for a one-time full sync. Your cards keep everything they have.")
+    if new_layout:
+        lines.append("Update the card layout so the new word's definition shows on the back. "
+                     "The current layout is saved in Waypoint's data folder first.")
+    if not ours and "Definition" in missing:
+        lines.append("This isn't a Trailblazer note type, so its layout is left alone: add the new fields to "
+                     "your card template yourself if you want them shown.")
+    if not askUser("\n\n".join(lines) + "\n\nGo ahead?", title="PathToFluent Waypoint"):
+        return
+    if missing and hasattr(mw, "confirm_schema_modification") and not mw.confirm_schema_modification():
+        return
+    try:
+        for f in missing:
+            mm.add_field(m, mm.new_field(f))
+        if new_layout:
+            slug = re.sub(r"[^A-Za-z0-9]+", "-", name).strip("-")
+            backup = os.path.join(data_dir(), "layout-backup-%s-%s.json" % (slug, time.strftime("%Y%m%d-%H%M%S")))
+            with open(backup, "w", encoding="utf-8") as f:
+                json.dump({"note_type": name, "front": current[0], "back": current[1], "css": current[2]}, f,
+                          ensure_ascii=False, indent=1)
+            m["tmpls"][0]["qfmt"], m["tmpls"][0]["afmt"], m["css"] = layout.FRONT, layout.BACK, layout.CSS
+        if rename_to:
+            m["name"] = rename_to
+        mm.update_dict(m)
+        if rename_to and mw.col.find_notes("tag:SubDeck"):
+            mw.col.tags.rename("SubDeck", "Trailblazer")
+    except Exception as e:
+        showWarning("Couldn't change the note type:\n%s: %s" % (type(e).__name__, e))
+        return
+    for key in [k for k in _cache if isinstance(k, tuple)]:      # field positions have changed
+        del _cache[key]
+    tooltip("'%s' is ready for Waypoint." % (rename_to or name))
+    reconcile()
 
 
 def open_data_folder():
@@ -651,6 +907,7 @@ for label, fn in (("Reconcile cards", lambda: reconcile()),
                   ("Show numbers", show_stats),
                   ("Mark this card known and skip", mark_known_and_skip),
                   ("Browse cards with the same unknown word", browse_same_word),
+                  ("Prepare a note type for Waypoint...", prepare_note_type),
                   ("Open data folder", open_data_folder),
                   ("Open frequency-list folder", open_freq_folder),
                   ("Settings...", open_settings)):

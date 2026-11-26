@@ -51,11 +51,18 @@ def test_two_unknowns_hold():
     assert plan(card(15, "managed", "El murciélago no."))["hold"] == [15]
 
 
-def test_names_are_ignored():
-    # A name that opens the sentence is only recognised when a frequency list is loaded and lacks it.
-    freq = {w: 0.5 for w in "no lo sé vamos a la casa de quiero ir".split()}
-    p = plan(card(16, "managed", "Juan, vamos a la casa de María."), freq=freq)
+def test_names_inside_a_sentence_are_ignored():
+    p = plan(card(16, "managed", "Vamos a la casa de María."))
     assert p["unknown_field"][16] == "de"
+
+
+def test_a_capital_that_opens_a_sentence_is_not_assumed_to_be_a_name():
+    # "Mírela." must count as a word to learn, not vanish as a supposed name.
+    p = plan(card(24, "managed", "Mírela."), card(25, "managed", "Juan, vamos a la casa."))
+    assert p["unknown_field"][24] == "mírela" and p["unknown_field"][25] == "juan"
+    # names.txt or a label settles it
+    assert plan(card(26, "managed", "Juan, vamos a la casa."), names={"juan"})["unknown_field"][26] == ""
+    assert plan(card(27, "managed", "Juan, vamos a la casa.", labels="juan=NAME"))["unknown_field"][27] == ""
 
 
 def test_labels_make_a_separate_sense():

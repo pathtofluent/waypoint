@@ -22,5 +22,16 @@
     "highlight_color": "#2f9e77",
     "shortcut_mark_known": "K",
     "shortcut_browse_same_word": "L",
-    "bank_language": "es"
+    "bank_language": "es",
+    "labels_folder": "",
+    "labels_batch_size": 300,
+    "usefulness_weight": 0.25,
+    "usefulness_goal": "",
+    "lemma_field": "Lemma",
+    "definition_field": "Definition",
+    "definition_mono_field": "Definition Monolingual",
+    "dictionary_field": "Dictionary Link",
+    "dictionary_url": "https://dle.rae.es/{lemma}",
+    "dictionary_name": "RAE",
+    "card_mode": "bilingual"
 }

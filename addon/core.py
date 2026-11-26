@@ -6,6 +6,7 @@ WORD = re.compile(r"[^\W\d_]+(?:['’\-][^\W\d_]+)*|\d+(?:[.,]\d+)*")
 SOUND, TAGS = re.compile(r"\[sound:[^\]]*\]"), re.compile(r"<[^>]+>")
 CLOZE = re.compile(r"\{\{c\d+::(.*?)(?:::[^}]*)?\}\}")
 NAME, NUM = "<name>", "<num>"
+INDEX_VERSION = 2
 SUB_EXT = (".srt", ".vtt", ".ass", ".ssa", ".txt")
 
 
@@ -44,9 +45,9 @@ def keys(sentence, freq=None, labels=None, names=None):
             out.append(NAME)
         elif surface[0].isdigit():
             out.append(NUM)
-        elif surface[0].isupper() and not (surface.isupper() and len(surface) > 1) and \
-                ((not at_start) or (freq and low not in freq)):
-            out.append(NAME)       # capitalised mid-sentence, or an opening word no dictionary knows
+        elif surface[0].isupper() and not (surface.isupper() and len(surface) > 1) and not at_start:
+            out.append(NAME)       # capitalised mid-sentence. A capital that opens a sentence proves nothing,
+                                   # so an opening name counts as a word until names.txt or a label says otherwise.
         else:
             out.append(low)
     return out
@@ -171,7 +172,9 @@ class Bank:
 
     @staticmethod
     def signature(folder, names=None):
-        return folder_signature(folder) + hashlib.sha1("|".join(sorted(names or ())).encode()).hexdigest()[:8]
+        # INDEX_VERSION changes whenever the way sentences are read changes, so old indexes are rebuilt.
+        return "%s%s-v%d" % (folder_signature(folder),
+                             hashlib.sha1("|".join(sorted(names or ())).encode()).hexdigest()[:8], INDEX_VERSION)
 
     @classmethod
     def load_or_build(cls, folder, index_path, freq=None, force=False, tick=None, names=None):
@@ -233,6 +236,11 @@ def analyse(cards, conf, freq=None, bank=None, names=None):
     def sent_weight(ks):
         return bank.sentence(ks, conf["exact_sentence_weight"], conf["chunk_weight"]) if bank else 0.0
 
+    def useful_weight(c):
+        """A 1-5 usefulness rating as 0..1; an unrated card sits in the middle so it isn't penalised."""
+        rating = c.get("usefulness")
+        return conf.get("usefulness_weight", 0.0) * ((rating - 1) / 4.0 if rating else 0.5)
+
     ready, fallback, hold, clear, field, forced = [], [], [], [], {}, []
     for c in cards:
         if c["role"] != "managed" or c["type"] != 0 or c.get("cleared") or c.get("known_manual") or \
@@ -243,11 +251,11 @@ def analyse(cards, conf, freq=None, bank=None, names=None):
         unknown = [k for k in uniq if k not in known and k not in learning]
         in_progress = [] if conf.get("count_learning_as_known") else [k for k in uniq if k in learning]
         field[c["nid"]] = ", ".join(show(k) for k in unknown)
-        s = sent_weight(ks)
+        s = conf["sentence_weight"] * sent_weight(ks) + useful_weight(c)
         if c.get("learn_now"):
             forced.append((99.0, c["cid"], "learn now"))
         elif len(unknown) == 1 and not in_progress:
-            score = conf["word_weight"] * word_weight(unknown[0]) + conf["sentence_weight"] * s
+            score = conf["word_weight"] * word_weight(unknown[0]) + s
             ready.append((score, c["cid"], unknown[0]))
         elif not unknown and not in_progress:
             (clear if " ".join(ks) in seen else fallback).append((s, c["cid"], " ".join(ks)))

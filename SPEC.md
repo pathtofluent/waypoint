@@ -44,6 +44,19 @@ When I study sentence cards made from Spanish TV subtitles, the next card should
 21. "Add subtitles to the bank" copies subtitle files from a chosen folder, at any depth, into the bank under that folder's name, keeping its subfolders.
 22. It keeps only files in the bank's language and reports how many it skipped in other languages.
 23. It never moves or changes the originals, and never overwrites a file already in the bank. An identical file is skipped; a different file with the same name and place is left alone and counted.
+24. Labelling is optional and off until a hand-off folder is chosen in Settings. Sorting never waits for it.
+25. On each run Waypoint first reads `waypoint_labels.json` from that folder, if present, then writes `waypoint_to_label.json` with the unchecked new cards: ready cards first in score order, then review-only cards, then waiting cards with the fewest unknown words, up to the batch size.
+26. A label is accepted only for a word present in the card's sentence, as `word#gloss` (lower-case letters, digits, hyphens; 30 characters at most) or `NAME`. Anything else is ignored and counted.
+27. Every card named in the answers is tagged `waypoint_labelled` and not offered again, including cards with nothing to label.
+28. Waypoint never contacts any service; whatever writes the answers is outside the add-on.
+29. The answers may also give each card a usefulness rating, a whole number from 1 to 5, judged against the goal in the settings. It is stored as a tag, `waypoint_useful_1` to `waypoint_useful_5`.
+30. The rating is a third part of the score: its weight (0.25 by default) times the rating scaled to 0-1. An unrated card counts as the middle of the scale.
+31. The default goal is everyday conversation: carrying on day-to-day conversations with ease and expressing one's thoughts at the level of a university-educated adult.
+32. For a new card with exactly one unknown word, the hand-off also asks for that word's dictionary form and two definitions of the meaning used in the sentence: one in the learner's language, one in the language being learned. A definition is accepted only if it names the card's unknown word and is plain text of 400 characters or fewer.
+33. Definitions are written by whoever does the labelling, never copied from a dictionary. The card links to the dictionary's page for the word.
+34. "New cards show" is a setting with two values, bilingual and monolingual. Each sorted card carries the matching tag. Changing the setting re-tags cards not yet studied; a studied card keeps its tag.
+35. A card already labelled is offered again only for a definition it lacks.
+36. "Prepare a note type" adds any missing Waypoint fields to a chosen note type and, for a Trailblazer note type, installs the current layout after saving the old one.
 
 ## 4. Examples
 Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
@@ -86,9 +99,14 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 | Known and learning lists are worked out fresh from the cards each run | Nothing to get out of step; self-corrects if a card lapses |
 | Hold cards by suspending and tagging | Reversible; keeps them out of the new queue |
 | Blank start, seeded by the Assimil deck | I'll spend about 100 days there first |
-| Names detected by capitalisation | Spanish rarely capitalises ordinary words mid-sentence |
+| Names detected by capitalisation inside a sentence only | Spanish rarely capitalises ordinary words mid-sentence, but every sentence opens with a capital. Guessing there hid real words; showing a name as a word is the visible, fixable mistake |
 | AI labelling done by a separate scheduled job, not by the add-on | No API key or extra bill; labelling isn't urgent |
 | Everything Waypoint needs lives in its own `waypoint` folder; no database, no shared folders | Standalone: works with no other add-on installed, and removing another add-on cannot break it |
+| Definitions are written for the sentence, not pulled from a dictionary | A dictionary lists every sense for native speakers and its text is the publisher's; a one-line definition of this meaning serves a learner better, with the dictionary one tap away |
+| Studied cards keep the mode they were learned in | Flipping to monolingual should change what comes next, not rewrite what has been learned |
+| Labels travel through two files in a folder the user chooses | No extra software, no open port, works with Anki closed, and any person or tool can do the labelling |
+| Usefulness weighs 0.25 against 1.0 for each counted factor | A rating is a judgement and varies; the counts are the same every time. At 0.25 the gap between a 1 and a 5 is about the gap between the 1,000th and 10,000th most common word: enough to reorder similar cards, not enough to lift a rare word over a common one. At 0.5 it outweighed word frequency for most words outside the top thousand |
+| An unlabelled word means its most common meaning; only other meanings get a label | Matches decks that have no labels at all, such as the read-only ones |
 | Never overwrite a bank file, even when the source copy has changed | Safe to point at the same folder repeatedly; a changed file can be replaced by hand |
 | Drop sentences and chunks that occur once from the bank index | They carry no signal and are most of the size |
 
@@ -103,7 +121,7 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - [x] **Stage 1:** Scoring core: word states, scoring, ready / held / review-only / cleared, bank index.
 - [x] **Stage 2:** Anki side: read cards, apply order, suspend and tag, fill the field, menu, automatic runs.
 - [ ] **Stage 3:** First run in real Anki with the Assimil deck and one imported episode. Fix what breaks.
-- [ ] **Stage 4:** The nightly labelling job through AnkiConnect.
+- [x] **Stage 4:** The labels hand-off through a chosen folder (the add-on's side).
 - [ ] **Stage 5:** "New meaning" button on the card for manual override.
 - [ ] **Later:** set phrases treated as one unit; French; optional direct API labelling.
 
@@ -122,5 +140,7 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - When done, update: status, the stage checkboxes, "Decisions made", and the log.
 
 ## 13. Log
+- 2026-11-26: 0.6.0. Definitions, bilingual/monolingual tags and "Prepare a note type" built (rules 32-36), with tests for the definition format. All of the Anki side untested. Planned path: primer deck (~2,000 cards), bilingual (~2,000), then monolingual towards 10,000.
+- 2026-11-26: 0.5.0. Labels hand-off built (rules 24-31, including the usefulness rating), with tests for the format and validation. Reading and writing cards inside Anki untested.
 - 2026-11-26: 0.4.0. Subtitle gathering built into the add-on (rules 21-23), with tests. Gathering logic tested; the menu item and its windows untested inside Anki.
 - 2026-11-21: Designed in chat. Stages 1 and 2 written; core tested on sample data, Anki side untested. SubDeck updated to 1.2 with the two new fields. Next: stage 3 at home.
