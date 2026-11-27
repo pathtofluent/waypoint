@@ -59,6 +59,10 @@ When I study sentence cards made from Spanish TV subtitles, the next card should
 36. "Prepare a note type" adds any missing Waypoint fields to a chosen note type and, for a Trailblazer note type, installs the current layout after saving the old one.
 37. When a "Daily numbers folder" is chosen, each run keeps one line for that day in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied so far, cards ready, cards waiting. A later run the same day replaces the line. With no folder chosen, nothing is written.
 38. A numbers file that can't be read is renamed aside and a new one started. A failure to write the numbers never stops the sorting.
+39. Text in round brackets whose letters are all capitals, such as (MUJER) or (SOLLOZANDO), is a caption and is ignored when counting, on cards and in the subtitle bank. Brackets holding lower-case text are kept.
+40. Marking a name while reviewing (right-click) applies to that card only, through its Labels field. `names.txt` hides a word on every card and is changed only by hand.
+41. Sounds listed in the `filler_words` setting ("mm", "uh", "eh"), in any drawn-out spelling, and written laughter are not words: they are never unknown, never learned, and count as one placeholder in the subtitle bank.
+42. A new card with no words to learn at all (only sounds, names or numbers) is cleared.
 
 ## 4. Examples
 Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
@@ -110,6 +114,8 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 | Usefulness weighs 0.25 against 1.0 for each counted factor | A rating is a judgement and varies; the counts are the same every time. At 0.25 the gap between a 1 and a 5 is about the gap between the 1,000th and 10,000th most common word: enough to reorder similar cards, not enough to lift a rare word over a common one. At 0.5 it outweighed word frequency for most words outside the top thousand |
 | An unlabelled word means its most common meaning; only other meanings get a label | Matches decks that have no labels at all, such as the read-only ones |
 | Never overwrite a bank file, even when the source copy has changed | Safe to point at the same folder repeatedly; a changed file can be replaced by hand |
+| Filler sounds are a list in the settings, not built in | "ja" and "um" are sounds in Spanish and real words in German and Portuguese. The default suits Spanish |
+| A name is marked per card; nothing is added to `names.txt` automatically | Many names are also ordinary words ("Río", a nickname like "Flaco"). A list that applies everywhere would hide the real word on every other card |
 | Drop sentences and chunks that occur once from the bank index | They carry no signal and are most of the size |
 
 ## 9. Open questions
@@ -142,6 +148,8 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - When done, update: status, the stage checkboxes, "Decisions made", and the log.
 
 ## 13. Log
+- 2026-11-27: 0.7.2. Filler sounds (rules 41-42) and the match-by-text rule for reused answers. Counting tested; the new setting inside Anki untested. 0.7.1's right-click name confirmed working by the owner.
+- 2026-11-27: 0.7.1. Captions in capitals inside round brackets ignored (rule 39); right-click name is per card (rule 40); labelling instructions updated. Counting and the label merge tested; the right-click action is untested inside Anki.
 - 2026-11-26: 0.7.0. Daily numbers file (rules 37-38) for PathToFluent Logbook or any other tool, with tests for the file handling. The setting and the write at reconcile are untested inside Anki.
 - 2026-11-26: 0.6.0. Definitions, bilingual/monolingual tags and "Prepare a note type" built (rules 32-36), with tests for the definition format. All of the Anki side untested. Planned path: primer deck (~2,000 cards), bilingual (~2,000), then monolingual towards 10,000.
 - 2026-11-26: 0.5.0. Labels hand-off built (rules 24-31, including the usefulness rating), with tests for the format and validation. Reading and writing cards inside Anki untested.

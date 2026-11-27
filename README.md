@@ -36,7 +36,7 @@ All inside your Anki profile folder:
 |------|---------|
 | `waypoint/frequency-list/` | Your frequency list: one file, one word per line, most common first |
 | `waypoint/subtitle-bank/` | Subtitle files (.srt, .vtt, .ass, .txt), subfolders allowed |
-| `waypoint/names.txt` | Names to ignore, one per line |
+| `waypoint/names.txt` | Names to ignore on every card, one per line. Edited by hand only; right-click marks a name on one card |
 | `waypoint/lists/` | The three readable word and sentence lists |
 
 Waypoint keeps everything in that one `waypoint` folder and uses no database. If you have a `dbs/frequency.txt` left by MorphMan or a similar add-on, Waypoint copies it into `waypoint/frequency-list/` the first time it runs and leaves the original alone.

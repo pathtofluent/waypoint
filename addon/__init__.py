@@ -25,7 +25,7 @@ from aqt.utils import askUser, openFolder, showInfo, showWarning, tooltip
 
 from . import core, daily, gather, labels, layout
 
-VERSION = "0.7.0"
+VERSION = "0.7.2"
 HELD, CLEARED, KNOWN, LEARN_NOW = "waypoint_held", "waypoint_cleared", "waypoint_known", "waypoint_learn_now"
 LABELLED = "waypoint_labelled"
 MODE_BI, MODE_MONO = "waypoint_bilingual", "waypoint_monolingual"   # which definition a card shows
@@ -57,6 +57,7 @@ DEFAULTS = {
     "subtitle_bank_folder": "",
     "run_automatically": True,
     "bank_language": "es",
+    "filler_words": ["ah", "eh", "oh", "uh", "ay", "uy", "ey", "uf", "buf", "bah", "mm", "hm", "hum", "um", "em", "ejem", "ajá", "aja", "pf", "pst", "sh", "chist", "ja", "je", "ji"],   # sounds, not words: never counted as unknown
     "labels_folder": "",                # hand-off folder for labels; blank = labelling off
     "labels_batch_size": 300,
     "stats_folder": "",                 # folder for the daily numbers file; blank = off
@@ -167,7 +168,8 @@ def bank_breakdown(folder):
 def get_bank(conf, freq, force=False, names=None):
     folder = bank_folder(conf)
     tick = lambda n, name: mw.progress.update(label="Indexing subtitles: %d files\n%s" % (n, name[:60]))
-    return core.Bank.load_or_build(folder, os.path.join(data_dir(), "bank_index.pkl"), freq, force, tick, names)
+    return core.Bank.load_or_build(folder, os.path.join(data_dir(), "bank_index.pkl"), freq, force, tick, names,
+                                   core.filler_set(conf.get("filler_words")))
 
 
 def rows(card_ids):
@@ -884,14 +886,27 @@ def on_browser_menu(browser, menu):
 
 
 def on_webview_menu(webview, menu):
+    """Right-click a selected word while reviewing: mark it as a name on this card only.
+    names.txt (a name everywhere) is left for the user to edit by hand."""
     text = webview.selectedText().strip()
     if not text or len(text) > 60:
         return
     def add():
-        with open(names_path(), "a", encoding="utf-8") as f:
-            f.write("\n".join(text.split()) + "\n")
-        tooltip("Added to names: %s. Takes effect at the next reconcile." % text)
-    action = menu.addAction("Waypoint: treat '%s' as a name" % text[:30])
+        card = mw.reviewer.card if mw.state == "review" else None
+        if not card:
+            return tooltip("Open the card in review to mark a name on it.")
+        conf, note = cfg(), card.note()
+        l_ord = field_ord(note.mid, conf["labels_field"])
+        s_ord = pick_ord(note.mid, [conf["sentence_field"], "Sentence", "Expression"])
+        if not is_managed(card) or l_ord is None or s_ord is None:
+            return tooltip("This card has no Labels field for Waypoint to use, so nothing was changed.")
+        value, picked = labels.add_names(note.fields[l_ord], text, core.plain(note.fields[s_ord]))
+        if not picked:
+            return tooltip("'%s' is not a word in this card's sentence." % text[:30])
+        note.fields[l_ord] = value
+        mw.col.update_note(note)
+        tooltip("Name on this card only: %s. Takes effect at the next reconcile." % ", ".join(picked))
+    action = menu.addAction("Waypoint: treat '%s' as a name on this card" % text[:30])
     action.triggered.connect(lambda _=False: add())
 
 

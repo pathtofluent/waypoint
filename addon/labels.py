@@ -27,6 +27,11 @@ Waypoint tracks words by their spelling. Two things spelling can't tell it:
 `waypoint_to_label.json` lists cards to check. For each card, read the sentence and decide:
 
 - If a word is the name of a person, place, brand or title, label it `NAME`.
+- A label belongs to this card only. An ordinary word used as a nickname ("Oye, Flaco") is `NAME`
+  here, and stays an ordinary word on every other card. Judge each sentence on its own.
+- Inside the full name of an institution, company, work or place ("Fábrica Nacional de Moneda y
+  Timbre"), do not give any word a `word#gloss` label. If the title's first word opens the sentence,
+  label that word `NAME`; leave the rest alone.
 - If a word has more than one clearly different meaning, and this sentence uses a meaning OTHER than
   the word's most common one, label it `word#gloss`, where gloss is a short lower-case English hint
   (letters, digits, hyphens; 30 characters at most), for example `banco#bank` or `banco#river-bank`.
@@ -66,6 +71,7 @@ word the card will teach. For that word, as it is used in this sentence, give:
   stage could follow, for THIS meaning. Write it yourself. Do not copy a dictionary's entry.
 
 Keep each to one or two lines, 400 characters at most, plain text with no formatting.
+If the word in `unknown` is a name, label it `NAME` and send no definition for that card.
 If a card needs only a definition, you don't need to send its labels or rating again.
 
 ## Answers
@@ -97,6 +103,8 @@ Write your answers to `waypoint_labels.json` in the same folder, in this shape:
 - `definitions` holds the cards whose `needs` includes `"definition"`.
 - A card whose `needs` is only `["definition"]` has been labelled already: leave it out of `labels`.
 - Do not change `waypoint_to_label.json`. Waypoint rewrites it each time it runs.
+- Card ids change when a deck is imported again. If you reuse an earlier answer for a sentence you
+  have seen before, match it by the sentence's exact text, never by any part of the id.
 
 Waypoint ignores any label that names a word not in the sentence or that is not in one of the
 two forms above.
@@ -105,6 +113,28 @@ two forms above.
 
 def words_of(sentence):
     return {m.group().lower() for m in WORD.finditer(sentence or "")}
+
+
+def add_names(existing, selection, sentence):
+    """Mark the selected words as names on one card. existing: the card's Labels field as stored
+    ('a=a#x; b=NAME'). Only words present in the sentence count.
+    Returns (new field text, the words marked)."""
+    present = words_of(sentence)
+    picked = []
+    for m in WORD.finditer(selection or ""):
+        w = m.group().lower()
+        if w in present and w not in picked:
+            picked.append(w)
+    parts = {}
+    text = re.sub(r"<[^>]+>", "", re.sub(r"<br\s*/?>|</div>", "\n", existing or "", flags=re.I))
+    for part in re.split(r"[;\n]", text):
+        if "=" in part:
+            k, v = (x.strip() for x in part.split("=", 1))
+            if k and v:
+                parts[k.lower()] = v
+    for w in picked:
+        parts[w] = "NAME"
+    return "; ".join("%s=%s" % kv for kv in parts.items()), picked
 
 
 def senses_in_use(label_maps):

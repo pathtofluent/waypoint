@@ -22,6 +22,8 @@ The easy way to change these is **Tools > Waypoint > Settings**.
 
 **bank_language**: the language kept by Tools > PathToFluent Waypoint > Add subtitles to the bank (es, en, fr, pt, it, de).
 
+**filler_words**: hesitation and reaction sounds that are not words to learn ("mm", "uh", "eh"). They never count as unknown, and a card made only of them, names and numbers is cleared. Longer spellings are covered automatically ("mm" also matches "mmmm"), as is written laughter ("jajaja"). The list suits Spanish; change it for another language, where "ja" or "um" may be a real word.
+
 **labels_folder**: folder for the labels hand-off (see the README). Blank turns labelling off. Set it in Settings with the Browse button.
 
 **labels_batch_size**: how many cards are offered for labelling at a time.

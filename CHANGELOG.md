@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.2 (2026-11-27)
+- New setting `filler_words`: hesitation and reaction sounds such as "mm", "uh" and "eh" are no longer counted as words to learn. Longer spellings ("mmmm", "uhh") and written laughter ("jajaja") are covered. The default list suits Spanish and can be edited in the add-on's config.
+- A card with nothing to learn at all (only sounds, names or numbers) is now cleared, so it never comes up. Before, it was queued after the ready cards.
+- Labelling instructions: an earlier answer may be reused only by matching the sentence's text, since card ids change when a deck is imported again.
+- The bank index rebuilds once on the next run.
+
+## 0.7.1 (2026-11-27)
+- Fixed: captions for the hard of hearing in round brackets and capitals, such as (MUJER), (SOLLOZANDO) or (MÚSICA SUAVE), were counted as words, on cards and in the subtitle bank. They are now ignored, like [square brackets] already were. Brackets holding lower-case text are kept as speech. The bank index rebuilds once on the next run.
+- Changed: right-click "treat as a name" now marks the word as a name on that card only, in its Labels field, and works only on a card being reviewed. It no longer writes to `names.txt`, which hides a word on every card. `names.txt` still works and is edited by hand.
+- Labelling instructions (`HOW-TO-LABEL.md`): a name label applies to one card, so a nickname that is also an ordinary word stays a word elsewhere; no definition is sent for a name; no meaning labels inside an institution's title.
+
 ## 0.7.0 (2026-11-26)
 - The ready-to-install add-on file is now kept in the repository at `download/pathtofluent_waypoint.ankiaddon`, linked from the README. (Packaging only; the add-on itself is unchanged.)
 - New optional setting "Daily numbers folder". When a folder is chosen, each run keeps that day's line in `waypoint_stats.json` there: known words, words being learned, known sentences, cards studied, cards ready, cards waiting. A second run on the same day replaces the line. Off unless a folder is chosen.

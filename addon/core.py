@@ -4,10 +4,18 @@ from collections import Counter
 
 WORD = re.compile(r"[^\W\d_]+(?:['’\-][^\W\d_]+)*|\d+(?:[.,]\d+)*")
 SOUND, TAGS = re.compile(r"\[sound:[^\]]*\]"), re.compile(r"<[^>]+>")
+PAREN = re.compile(r"\([^()]*\)")
 CLOZE = re.compile(r"\{\{c\d+::(.*?)(?:::[^}]*)?\}\}")
-NAME, NUM = "<name>", "<num>"
-INDEX_VERSION = 2
+NAME, NUM, FILLER = "<name>", "<num>", "<uh>"
+INDEX_VERSION = 4
 SUB_EXT = (".srt", ".vtt", ".ass", ".ssa", ".txt")
+
+
+def _drop_caption(m):
+    """'(MUJER)', '(SOLLOZANDO)', '(MÚSICA SUAVE)': a caption for the hard of hearing, not speech.
+    Told apart from a spoken aside by having letters and none of them lower-case."""
+    inner = m.group()
+    return " " if any(c.isalpha() for c in inner) and not any(c.islower() for c in inner) else inner
 
 
 def plain(text):
@@ -17,6 +25,7 @@ def plain(text):
     text = re.sub(r"\{\\[^}]*\}", "", text)
     text = TAGS.sub(" ", text)
     text = re.sub(r"\[[^\]]*\]|[♪♫]", " ", html.unescape(text))
+    text = PAREN.sub(_drop_caption, text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -32,8 +41,28 @@ def parse_labels(text):
     return out
 
 
-def keys(sentence, freq=None, labels=None, names=None):
-    """Sentence -> list of word keys. Names and numbers become placeholders; labels override."""
+LAUGH = re.compile(r"a?(?:ja){2,}j?|(?:je){2,}j?|(?:ji){2,}j?|(?:jo){2,}j?|(?:ju){2,}j?")
+
+
+def _squash(word):
+    return re.sub(r"(.)\1+", r"\1", word)
+
+
+def filler_set(words):
+    """The settings' list of sounds -> a set to match against. 'mm' also covers 'mmmm', 'uh' covers 'uhh'."""
+    return frozenset(_squash(w.strip().lower()) for w in (words or ()) if w and w.strip())
+
+
+def is_filler(low, fillers):
+    """A hesitation or reaction sound ('mmm', 'uhh', 'jajaja'), not a word to learn."""
+    if not fillers:
+        return False
+    short = _squash(low)
+    return (short in fillers and (len(short) > 1 or len(low) > 1)) or bool(LAUGH.fullmatch(low))
+
+
+def keys(sentence, freq=None, labels=None, names=None, fillers=None):
+    """Sentence -> list of word keys. Names, numbers and filler sounds become placeholders; labels override."""
     out, pos, labels = [], 0, labels or {}
     for m in WORD.finditer(sentence):
         gap, surface = sentence[pos:m.start()], m.group()
@@ -45,6 +74,8 @@ def keys(sentence, freq=None, labels=None, names=None):
             out.append(NAME)
         elif surface[0].isdigit():
             out.append(NUM)
+        elif is_filler(low, fillers):
+            out.append(FILLER)
         elif surface[0].isupper() and not (surface.isupper() and len(surface) > 1) and not at_start:
             out.append(NAME)       # capitalised mid-sentence. A capital that opens a sentence proves nothing,
                                    # so an opening name counts as a word until names.txt or a label says otherwise.
@@ -54,7 +85,7 @@ def keys(sentence, freq=None, labels=None, names=None):
 
 
 def content(ks):
-    return [k for k in ks if k not in (NAME, NUM)]
+    return [k for k in ks if k not in (NAME, NUM, FILLER)]
 
 
 def show(key):
@@ -137,8 +168,8 @@ class Bank:
         self.sig, self.files, self.total = "", 0, 0
         self.words, self.sents, self.bi, self.tri = Counter(), Counter(), Counter(), Counter()
 
-    def add(self, sentence, freq=None, names=None):
-        ks = keys(sentence, freq, None, names)
+    def add(self, sentence, freq=None, names=None, fillers=None):
+        ks = keys(sentence, freq, None, names, fillers)
         if not ks:
             return
         self.total += 1
@@ -153,9 +184,9 @@ class Bank:
         self.mx = {n: max(getattr(self, n).values(), default=0) for n in ("words", "sents", "bi", "tri")}
 
     @classmethod
-    def build(cls, folder, freq=None, tick=None, names=None):
+    def build(cls, folder, freq=None, tick=None, names=None, fillers=None):
         b = cls()
-        b.sig = cls.signature(folder, names)
+        b.sig = cls.signature(folder, names, fillers)
         for root, _, files in sorted(os.walk(folder)):
             for f in sorted(files):
                 if f.lower().endswith(SUB_EXT):
@@ -164,30 +195,31 @@ class Bank:
                         tick(b.files, f)
                     try:
                         for line in read_lines(os.path.join(root, f)):
-                            b.add(line, freq, names)
+                            b.add(line, freq, names, fillers)
                     except OSError:
                         pass
         b.finish()
         return b
 
     @staticmethod
-    def signature(folder, names=None):
+    def signature(folder, names=None, fillers=None):
         # INDEX_VERSION changes whenever the way sentences are read changes, so old indexes are rebuilt.
         return "%s%s-v%d" % (folder_signature(folder),
-                             hashlib.sha1("|".join(sorted(names or ())).encode()).hexdigest()[:8], INDEX_VERSION)
+                             hashlib.sha1(("|".join(sorted(names or ())) + "#" + "|".join(sorted(fillers or ())))
+                                          .encode()).hexdigest()[:8], INDEX_VERSION)
 
     @classmethod
-    def load_or_build(cls, folder, index_path, freq=None, force=False, tick=None, names=None):
+    def load_or_build(cls, folder, index_path, freq=None, force=False, tick=None, names=None, fillers=None):
         if not folder or not os.path.isdir(folder):
             return None
         if not force and os.path.exists(index_path):
             try:
                 b = pickle.load(open(index_path, "rb"))
-                if b.sig == cls.signature(folder, names):
+                if b.sig == cls.signature(folder, names, fillers):
                     return b
             except Exception:
                 pass
-        b = cls.build(folder, freq, tick, names)
+        b = cls.build(folder, freq, tick, names, fillers)
         pickle.dump(b, open(index_path, "wb"), protocol=4)
         return b
 
@@ -212,10 +244,10 @@ def analyse(cards, conf, freq=None, bank=None, names=None):
     ivl (days), suspended, held, cleared, known_manual, learn_now.
     The cards are the source of truth: known and learning words are worked out from them on every run.
     Returns the plan for the managed cards."""
-    freq = freq or {}
+    freq, fillers = freq or {}, filler_set(conf.get("filler_words"))
     known, learning, seen, known_sents, parsed = set(), set(), set(), set(), {}
     for c in cards:
-        ks = keys(plain(c["sentence"]), freq, parse_labels(c.get("labels", "")), names)
+        ks = keys(plain(c["sentence"]), freq, parse_labels(c.get("labels", "")), names, fillers)
         parsed[c["cid"]] = ks
         need = conf["source_known_interval_days"] if c["role"] == "source" else conf["known_interval_days"]
         if c.get("known_manual") or (c["type"] == 2 and c["ivl"] >= need):
@@ -257,6 +289,8 @@ def analyse(cards, conf, freq=None, bank=None, names=None):
         elif len(unknown) == 1 and not in_progress:
             score = conf["word_weight"] * word_weight(unknown[0]) + s
             ready.append((score, c["cid"], unknown[0]))
+        elif not uniq:                                       # only sounds, names or numbers: nothing to learn
+            clear.append((s, c["cid"], " ".join(ks)))
         elif not unknown and not in_progress:
             (clear if " ".join(ks) in seen else fallback).append((s, c["cid"], " ".join(ks)))
         else:

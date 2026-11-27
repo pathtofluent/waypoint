@@ -112,6 +112,52 @@ def test_highlight_skips_tags_and_scripts():
     assert out == '<div class="playa">La <span class="wp-new">PLAYA</span></div><script>var playa=1</script>'
 
 
+def test_captions_in_capitals_are_not_words():
+    assert core.plain("(MUJER) Vamos a la playa.") == "Vamos a la playa."
+    assert core.plain("- (SOLLOZANDO) No lo sé. (MÚSICA SUAVE)") == "- No lo sé."
+    assert core.plain("Vamos (creo) a la playa.") == "Vamos (creo) a la playa."      # speech is kept
+    assert core.plain("Fue en (1998).") == "Fue en (1998)."
+    p = plan(card(30, "managed", "(MUJER) Vamos a la playa."))
+    assert ids(p["ready"]) == [30] and p["unknown_field"][30] == "playa"
+
+
+def test_card_that_is_only_a_caption_teaches_nothing():
+    p = plan(card(31, "managed", "(EMISORA)"))
+    assert p["clear"] == [31] and p["unknown_field"].get(31, "") == ""
+
+
+def test_bank_ignores_captions():
+    with tempfile.TemporaryDirectory() as d:
+        open(os.path.join(d, "a.srt"), "w", encoding="utf-8").write(
+            "1\n00:00:01,000 --> 00:00:02,000\n(MUJER) Ven aquí.\n\n2\n00:00:03,000 --> 00:00:04,000\nVen aquí.\n")
+        b = core.Bank.build(d)
+    assert b.sents["ven aquí"] == 2 and "mujer" not in b.words
+
+
+FILL = core.filler_set(["mm", "uh", "eh", "ja", "ay", "sh"])
+
+
+def test_filler_sounds_match_any_length_but_not_real_words():
+    for w in ("mm", "mmmm", "uh", "uhh", "eh", "eeeh", "shh", "jajaja", "jeje", "ajaja"):
+        assert core.is_filler(w, FILL), w
+    for w in ("ojo", "hijo", "ajo", "ha", "he", "hay", "m", "ella", "jota", "eso"):
+        assert not core.is_filler(w, FILL), w
+    assert not core.is_filler("mmm", None)                    # no list, nothing is a filler
+
+
+def test_filler_is_never_the_unknown_word():
+    conf = dict(CONF, filler_words=["mm", "uh"])
+    p = core.analyse(SEED + [card(40, "managed", "Mmm, vamos a la playa."), card(41, "managed", "Uhh... mmm."),
+                             card(42, "managed", "¡Juan!", labels="juan=NAME")], conf)
+    assert ids(p["ready"]) == [40] and p["unknown_field"][40] == "playa"
+    assert sorted(p["clear"]) == [41, 42] and p["fallback"] == []      # nothing to learn: not shown
+
+
+def test_without_a_filler_list_sounds_are_words():
+    p = plan(card(43, "managed", "Mmm, vamos a la casa."))
+    assert p["unknown_field"][43] == "mmm"
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

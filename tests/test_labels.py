@@ -133,6 +133,19 @@ def test_export_says_what_each_card_needs():
     assert [c["needs"] for c in doc["cards"]] == [["labels", "definition"], ["labels"]]
 
 
+def test_add_names_marks_this_card_only():
+    assert labels.add_names("", "Flaco", "Oye, Flaco, ven aquí.") == ("flaco=NAME", ["flaco"])
+    assert labels.add_names("banco=banco#bank", "Río", "Río va al banco.") == ("banco=banco#bank; río=NAME", ["río"])
+    assert labels.add_names("flaco=flaco#thin", "Flaco", "Oye, Flaco.") == ("flaco=NAME", ["flaco"])
+    assert labels.add_names("banco=banco#bank", "Madrid", "Vamos al banco.") == ("banco=banco#bank", [])
+
+
+def test_label_for_a_caption_word_is_rejected():
+    import core
+    out, rejected, _ = labels.parse_answers({"labels": {"1": {"mujer": "NAME"}}}, {1: core.plain("(MUJER) Hola.")})
+    assert out == {1: ""} and rejected == 1
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
