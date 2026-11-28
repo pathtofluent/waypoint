@@ -125,6 +125,8 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - [ ] (Claude) Does Anki keep the card order handed to it when repositioning? Check on first real run.
 - [ ] (me) Should a word drop back from known to learning if its card lapses below 21 days?
 - [ ] (me) Should source decks use a lower threshold than 21 days?
+- [ ] (me) **Choose a card for a word** (idea, 2026-11-28). A "Choose this one" action on a card. Once used, every other card that teaches the same new word in the same meaning (same label, or no label) is retired, so the deck trims itself. Until a card is chosen, nothing is retired: the first card shown may have a poor clip or sentence. Open: does retire mean suspend and tag (`waypoint_retired`, reversible, keeps the media), or delete to free space? If delete, when (for example once the chosen card reaches 21 days) and with what way back? Does a chosen card that later lapses bring its siblings back?
+- [ ] (me) **Staging deck to main deck** (idea, 2026-11-28). New cards are imported into a staging deck; once a card is chosen or learned, Waypoint moves it to the main deck, so nothing is moved by hand. Open: which event moves a card (chosen, first review, or known at 21 days); one main deck or one per source; what happens to its retired siblings.
 
 ## 10. Build stages
 - [x] **Stage 1:** Scoring core: word states, scoring, ready / held / review-only / cleared, bank index.
@@ -132,7 +134,7 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - [ ] **Stage 3:** First run in real Anki with the Assimil deck and one imported episode. Fix what breaks.
 - [x] **Stage 4:** The labels hand-off through a chosen folder (the add-on's side).
 - [ ] **Stage 5:** "New meaning" button on the card for manual override.
-- [ ] **Later:** set phrases treated as one unit; French; optional direct API labelling.
+- [ ] **Later:** set phrases treated as one unit; French; optional direct API labelling; choosing a card for a word, and moving cards from a staging deck to the main deck (see Open questions).
 
 ## 11. How to check it works
 - Tested: the scoring core, against the examples in section 4, on a small made-up frequency list and subtitle bank.
@@ -149,6 +151,7 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - When done, update: status, the stage checkboxes, "Decisions made", and the log.
 
 ## 13. Log
+- 2026-11-28: Two ideas recorded for later: choosing a card for a word so the others teaching it are retired, and moving cards from a staging deck to the main deck. Not specced or built.
 - 2026-11-28: 0.7.3. Repeated sentences sent once and the answer shared (rule 43). Choosing and sharing tested; reading the notes and writing to them inside Anki untested.
 - 2026-11-27: 0.7.2. Filler sounds (rules 41-42) and the match-by-text rule for reused answers. Counting tested; the new setting inside Anki untested. 0.7.1's right-click name confirmed working by the owner.
 - 2026-11-27: 0.7.1. Captions in capitals inside round brackets ignored (rule 39); right-click name is per card (rule 40); labelling instructions updated. Counting and the label merge tested; the right-click action is untested inside Anki.
