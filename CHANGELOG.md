@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3 (2026-11-28)
+- Labels hand-off: a sentence that sits on several cards is now listed once in `waypoint_to_label.json`. When the answer comes back, its labels, rating and definition are given to every other card with exactly the same sentence that still lacks them. A card that was answered itself, or labelled by hand, is never overridden.
+- Show numbers reports how many cards received a shared answer on the last run.
+
 ## 0.7.2 (2026-11-27)
 - New setting `filler_words`: hesitation and reaction sounds such as "mm", "uh" and "eh" are no longer counted as words to learn. Longer spellings ("mmmm", "uhh") and written laughter ("jajaja") are covered. The default list suits Spanish and can be edited in the add-on's config.
 - A card with nothing to learn at all (only sounds, names or numbers) is now cleared, so it never comes up. Before, it was queued after the ready cards.

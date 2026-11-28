@@ -253,6 +253,35 @@ def labels_dir(conf):
     return folder if folder and os.path.isdir(folder) else ""
 
 
+def sorted_notes(conf):
+    """Every note in the sorted decks: ({note id: plain sentence}, {note id: what it still lacks})."""
+    if conf["managed_decks"]:
+        searches = ["deck:" + quoted(d) for d in conf["managed_decks"]]
+    else:
+        searches = ["note:" + quoted(n) for n in conf["managed_note_types"]]
+    ids = set()
+    for search in searches:
+        ids.update(mw.col.find_notes(search))
+    ids, sentences, wants = list(ids), {}, {}
+    for i in range(0, len(ids), 900):
+        chunk = ",".join(str(x) for x in ids[i:i + 900])
+        for nid, mid, flds, tags in mw.col.db.all("select id, mid, flds, tags from notes where id in (%s)" % chunk):
+            s_ord = pick_ord(mid, [conf["sentence_field"], "Sentence", "Expression"])
+            l_ord = field_ord(mid, conf["labels_field"])
+            if s_ord is None or l_ord is None:
+                continue
+            f, tagset, lack = flds.split("\x1f"), set(tags.split()), set()
+            if LABELLED not in tagset and not f[l_ord].strip():
+                lack.add("labels")
+            if not any(t.startswith(USEFUL) for t in tagset):
+                lack.add("usefulness")
+            d_ords = (field_ord(mid, conf["definition_field"]), field_ord(mid, conf["definition_mono_field"]))
+            if None not in d_ords and not any(f[o].strip() for o in d_ords):
+                lack.add("definitions")
+            sentences[nid], wants[nid] = core.plain(f[s_ord]), lack
+    return sentences, wants
+
+
 def import_labels(conf):
     """Read the answers file if there is one, store the valid labels on their cards, set the file aside."""
     folder = labels_dir(conf)
@@ -265,6 +294,12 @@ def import_labels(conf):
         os.replace(path, os.path.join(folder, "waypoint_labels.unreadable.json"))
         return {"labels_error": "The answers file couldn't be read (%s). It was renamed to "
                                 "waypoint_labels.unreadable.json." % type(e).__name__}
+    shared = 0
+    try:                                             # the same sentence on other cards gets the same answer
+        sentences_all, wants = sorted_notes(conf)
+        data, shared = labels.share_answers(data, sentences_all, wants)
+    except Exception:
+        pass
     keys = set()
     for name in ("labels", "usefulness", "definitions"):
         table = data.get(name) if isinstance(data, dict) else None
@@ -313,7 +348,7 @@ def import_labels(conf):
     os.replace(path, os.path.join(folder, labels.IMPORTED))
     return {"labels_imported": len(set(parsed) | set(ratings) | set(defs)), "labels_rated": len(ratings),
             "labels_defined": len(defs), "labels_rejected": rejected + bad_ratings + bad_defs,
-            "labels_unknown_cards": strangers}
+            "labels_unknown_cards": strangers, "labels_shared": shared}
 
 
 def export_labels(conf, cards, plan):
@@ -343,6 +378,7 @@ def export_labels(conf, cards, plan):
                 todo[c["nid"]] = dict(c, needs=need)
     ordered = sorted(todo.values(), key=lambda c: (0, place[c["cid"]], 0) if c["cid"] in place
                      else (1, len(unknown_of(c)), c["cid"]))
+    ordered = labels.one_per_sentence([dict(c, sentence=core.plain(c["sentence"])) for c in ordered])
     senses = labels.senses_in_use(core.parse_labels(c["labels"]) for c in cards if c.get("labels"))
     doc = labels.build_export([{"id": c["nid"], "sentence": core.plain(c["sentence"]), "unknown": unknown_of(c),
                                 "needs": c["needs"]} for c in ordered], senses, conf["bank_language"], conf["labels_batch_size"],
@@ -487,6 +523,8 @@ def show_stats():
             format(s.get("labels_done", 0), ","), format(s.get("labels_rated_total", 0), ","),
             format(s.get("definitions_done", 0), ","), format(s.get("labels_waiting", 0), ","),
             format(s.get("definitions_waiting", 0), ","), format(s.get("labels_imported", 0), ","))
+        if s.get("labels_shared"):
+            text += "\n  Of those, given the answer of an identical sentence: %s" % format(s["labels_shared"], ",")
         if s.get("labels_rejected") or s.get("labels_unknown_cards"):
             text += "\n  Ignored on the last run: %d invalid label(s), rating(s) or definition(s), %d card(s) not found" % (
                 s.get("labels_rejected", 0), s.get("labels_unknown_cards", 0))

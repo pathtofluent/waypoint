@@ -146,6 +146,31 @@ def test_label_for_a_caption_word_is_rejected():
     assert out == {1: ""} and rejected == 1
 
 
+def test_a_repeated_sentence_is_sent_once():
+    cards = [{"id": 1, "sentence": "Vamos.", "needs": ["labels"]}, {"id": 2, "sentence": "Vamos.", "needs": ["labels"]},
+             {"id": 3, "sentence": "Vamos.", "needs": ["definition"]}, {"id": 4, "sentence": "No.", "needs": ["labels"]}]
+    assert [c["id"] for c in labels.one_per_sentence(cards)] == [1, 3, 4]
+
+
+def test_an_answer_is_shared_with_identical_sentences_that_lack_it():
+    sentences = {1: "¿Qué lleva puesto?", 2: "¿Qué lleva puesto?", 3: "¿Qué lleva puesto?", 4: "Vamos."}
+    wants = {2: {"labels", "usefulness", "definitions"}, 3: {"usefulness"}, 4: {"labels", "usefulness"}}
+    data = {"labels": {"1": {"lleva": "lleva#wear"}}, "usefulness": {"1": 4},
+            "definitions": {"1": {"word": "lleva", "lemma": "llevar", "en": "wears", "es": "Tiene puesto."}}}
+    out, added = labels.share_answers(data, sentences, wants)
+    assert out["labels"] == {"1": {"lleva": "lleva#wear"}, "2": {"lleva": "lleva#wear"}}     # 3 has labels already
+    assert out["usefulness"] == {"1": 4, "2": 4, "3": 4} and "4" not in out["usefulness"]
+    assert set(out["definitions"]) == {"1", "2"} and added == 2
+    assert data["labels"] == {"1": {"lleva": "lleva#wear"}}                                   # the original is untouched
+
+
+def test_a_card_answered_itself_is_not_overridden_by_a_twin():
+    sentences = {1: "Oye, Flaco.", 2: "Oye, Flaco."}
+    wants = {1: {"labels"}, 2: {"labels"}}
+    out, added = labels.share_answers({"labels": {"1": {"flaco": "NAME"}, "2": {}}}, sentences, wants)
+    assert out["labels"] == {"1": {"flaco": "NAME"}, "2": {}} and added == 0
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

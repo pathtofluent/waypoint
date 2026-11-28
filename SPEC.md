@@ -63,6 +63,7 @@ When I study sentence cards made from Spanish TV subtitles, the next card should
 40. Marking a name while reviewing (right-click) applies to that card only, through its Labels field. `names.txt` hides a word on every card and is changed only by hand.
 41. Sounds listed in the `filler_words` setting ("mm", "uh", "eh"), in any drawn-out spelling, and written laughter are not words: they are never unknown, never learned, and count as one placeholder in the subtitle bank.
 42. A new card with no words to learn at all (only sounds, names or numbers) is cleared.
+43. In the hand-off, a sentence that sits on several cards is listed once. Its answer (labels, rating, definition) is given to every other card with exactly the same sentence that still lacks that part. A card answered itself, or labelled by hand, is never overridden.
 
 ## 4. Examples
 Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
@@ -148,6 +149,7 @@ Known words: no, lo, sé, vamos, a, la, casa. Learning words: quiero, ir.
 - When done, update: status, the stage checkboxes, "Decisions made", and the log.
 
 ## 13. Log
+- 2026-11-28: 0.7.3. Repeated sentences sent once and the answer shared (rule 43). Choosing and sharing tested; reading the notes and writing to them inside Anki untested.
 - 2026-11-27: 0.7.2. Filler sounds (rules 41-42) and the match-by-text rule for reused answers. Counting tested; the new setting inside Anki untested. 0.7.1's right-click name confirmed working by the owner.
 - 2026-11-27: 0.7.1. Captions in capitals inside round brackets ignored (rule 39); right-click name is per card (rule 40); labelling instructions updated. Counting and the label merge tested; the right-click action is untested inside Anki.
 - 2026-11-26: 0.7.0. Daily numbers file (rules 37-38) for PathToFluent Logbook or any other tool, with tests for the file handling. The setting and the write at reconcile are untested inside Anki.

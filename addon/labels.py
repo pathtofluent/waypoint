@@ -103,6 +103,7 @@ Write your answers to `waypoint_labels.json` in the same folder, in this shape:
 - `definitions` holds the cards whose `needs` includes `"definition"`.
 - A card whose `needs` is only `["definition"]` has been labelled already: leave it out of `labels`.
 - Do not change `waypoint_to_label.json`. Waypoint rewrites it each time it runs.
+- A sentence that sits on several cards is listed once. Waypoint gives your answer to the others.
 - Card ids change when a deck is imported again. If you reuse an earlier answer for a sentence you
   have seen before, match it by the sentence's exact text, never by any part of the id.
 
@@ -157,6 +158,47 @@ def build_export(cards, senses, language, limit, goal=DEFAULT_GOAL):
              for c in cards[:max(0, int(limit))]]
     return {"version": 1, "language": language, "instructions": "See %s in this folder." % HOWTO,
             "answers_file": ANSWERS, "goal": goal or DEFAULT_GOAL, "waiting_in_total": waiting, "cards": batch, "senses": senses}
+
+
+def one_per_sentence(cards):
+    """cards: dicts with sentence and needs, in priority order. Keeps the first card for each distinct
+    sentence and need, so the same line is never sent twice. The answer is shared out on the way in."""
+    kept, taken = [], set()
+    for c in cards:
+        key = (c["sentence"].strip(), tuple(c.get("needs") or ()))
+        if key not in taken:
+            taken.add(key)
+            kept.append(c)
+    return kept
+
+
+def share_answers(data, sentences, wants):
+    """Give each answer to the other cards that hold exactly the same sentence.
+    sentences: {note id (int): plain sentence} for every sorted note.
+    wants: {note id: set of 'labels', 'usefulness', 'definitions'} - what that note still lacks.
+    A card that was answered itself is never overridden. Returns (data with the extra entries, cards added)."""
+    if not isinstance(data, dict):
+        return data, 0
+    by_text = {}
+    for nid, text in sentences.items():
+        by_text.setdefault(text.strip(), []).append(nid)
+    out, added = dict(data), set()
+    for name in ("labels", "usefulness", "definitions"):
+        table = data.get(name)
+        if not isinstance(table, dict):
+            continue
+        grown = dict(table)
+        for key, value in table.items():
+            try:
+                nid = int(key)
+            except (TypeError, ValueError):
+                continue
+            for twin in by_text.get(sentences.get(nid, "\0").strip(), ()):
+                if twin != nid and str(twin) not in grown and name in wants.get(twin, ()):
+                    grown[str(twin)] = value
+                    added.add(twin)
+        out[name] = grown
+    return out, len(added)
 
 
 def clean_label(word, value, sentence_words):
